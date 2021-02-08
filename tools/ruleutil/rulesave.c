@@ -45,8 +45,9 @@
  * 1  - Freeciv-2.6 
  * 10 - Freeciv-3.0
  * 20 - Freeciv-3.1
+ * 30 - Freeciv-3.2
  */
-#define FORMAT_VERSION 20
+#define FORMAT_VERSION 30
 
 /**********************************************************************//**
   Create new ruleset section file with common header.
@@ -894,6 +895,58 @@ static bool save_action_actor_consuming_always(struct section_file *sfile,
 }
 
 /**********************************************************************//**
+  Save what actions will block this action.
+**************************************************************************/
+static bool save_action_blocked_by(struct section_file *sfile,
+                                   struct action *paction)
+{
+  enum gen_action action_vec[MAX_NUM_ACTIONS];
+  char comment[1024];
+  int i = 0;
+
+  if (action_blocked_by_ruleset_var_name(paction) == NULL) {
+    /* Action blocked by shouldn't be written to the ruleset for this
+     * action. */
+    return TRUE;
+  }
+
+  if (action_enabler_list_size(action_enablers_for_action(paction->id))
+      == 0) {
+    /* Don't save value for actions that aren't enabled. */
+    return TRUE;
+  }
+
+  fc_snprintf(comment, sizeof(comment),
+              "Forbid \"%s\" if any one of the listed actions are legal.",
+              action_rule_name(paction));
+
+  action_iterate(blocker_id) {
+    if (action_enabler_list_size(action_enablers_for_action(blocker_id))
+        == 0) {
+      /* Don't save value for actions that aren't enabled. */
+      continue;
+    }
+
+    if (BV_ISSET(paction->blocked_by, blocker_id)) {
+      action_vec[i] = blocker_id;
+      i++;
+    }
+  } action_iterate_end;
+
+  if (secfile_insert_enum_vec_comment(
+        sfile, &action_vec, i, gen_action, comment, "actions.%s",
+        action_blocked_by_ruleset_var_name(paction))
+      != i) {
+    log_error("Didn't save all %s blocking actions.",
+              action_rule_name(paction));
+
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+/**********************************************************************//**
   Save game.ruleset
 **************************************************************************/
 static bool save_game_ruleset(const char *filename, const char *name)
@@ -909,9 +962,8 @@ static bool save_game_ruleset(const char *filename, const char *name)
   const char *tnames[game.server.ruledit.named_teams];
   enum trade_route_type trt;
   int i;
-  enum gen_action quiet_actions[MAX_NUM_ACTIONS];
+  enum gen_action action_vec[MAX_NUM_ACTIONS];
   bool locks;
-  int force_capture_units, force_bombard, force_explode_nuclear;
 
   if (sfile == NULL) {
     return FALSE;
@@ -1125,31 +1177,20 @@ static bool save_game_ruleset(const char *filename, const char *name)
                      "auto_attack", "if_attacker");
   }
 
-  save_default_bool(sfile,
-                    action_id_would_be_blocked_by(ACTION_MARKETPLACE,
-                                                  ACTION_TRADE_ROUTE),
-                    RS_DEFAULT_FORCE_TRADE_ROUTE,
-                    "actions.force_trade_route", NULL);
+  i = 0;
+  action_iterate(act_id) {
+    if (BV_ISSET(game.info.move_is_blocked_by, act_id)) {
+      action_vec[i] = act_id;
+      i++;
+    }
+  } action_iterate_end;
 
-  /* The ruleset options force_capture_units, force_bombard and
-   * force_explode_nuclear sets their respective action to block many other
-   * actions' blocked_by. Checking one is therefore enough. */
-  force_capture_units =
-      BV_ISSET(action_by_number(ACTION_ATTACK)->blocked_by,
-               ACTION_CAPTURE_UNITS);
-  save_default_bool(sfile, force_capture_units,
-                    RS_DEFAULT_FORCE_CAPTURE_UNITS,
-                    "actions.force_capture_units", NULL);
-  force_bombard =
-      BV_ISSET(action_by_number(ACTION_ATTACK)->blocked_by, ACTION_BOMBARD);
-  save_default_bool(sfile, force_bombard,
-                    RS_DEFAULT_FORCE_BOMBARD,
-                    "actions.force_bombard", NULL);
-  force_explode_nuclear =
-      BV_ISSET(action_by_number(ACTION_ATTACK)->blocked_by, ACTION_NUKE);
-  save_default_bool(sfile, force_explode_nuclear,
-                    RS_DEFAULT_FORCE_EXPLODE_NUCLEAR,
-                    "actions.force_explode_nuclear", NULL);
+  if (secfile_insert_enum_vec(sfile, &action_vec, i, gen_action,
+                              "actions.move_is_blocked_by") != i) {
+    log_error("Didn't save all move blocking actions.");
+
+    return FALSE;
+  }
 
   save_default_bool(sfile, game.info.poison_empties_food_stock,
                     RS_DEFAULT_POISON_EMPTIES_FOOD_STOCK,
@@ -1160,22 +1201,25 @@ static bool save_game_ruleset(const char *filename, const char *name)
                     "actions.steal_maps_reveals_all_cities", NULL);
 
   action_iterate(act_id) {
+    struct action *act = action_by_number(act_id);
+
     save_action_ui_name(sfile,
                         act_id, action_ui_name_ruleset_var_name(act_id));
     save_action_kind(sfile, act_id);
     save_action_range(sfile, act_id);
     save_action_actor_consuming_always(sfile, act_id);
+    save_action_blocked_by(sfile, act);
   } action_iterate_end;
 
   i = 0;
   action_iterate(act) {
     if (action_by_number(act)->quiet) {
-      quiet_actions[i] = act;
+      action_vec[i] = act;
       i++;
     }
   } action_iterate_end;
 
-  if (secfile_insert_enum_vec(sfile, &quiet_actions, i, gen_action,
+  if (secfile_insert_enum_vec(sfile, &action_vec, i, gen_action,
                               "actions.quiet_actions") != i) {
     log_error("Didn't save all quiet actions.");
 

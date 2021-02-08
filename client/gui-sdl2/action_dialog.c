@@ -463,9 +463,9 @@ static int spy_steal_popup_shared(struct widget *pwidget)
       count++;
 
       copy_chars_to_utf8_str(pstr, advance_name_translation(advance_by_number(i)));
-      surf = create_select_tech_icon(pstr, i, FULL_MODE);
+      surf = create_select_tech_icon(pstr, i, TIM_FULL_MODE);
       buf = create_icon2(surf, pwindow->dst,
-      		WF_FREE_THEME | WF_RESTORE_BACKGROUND);
+                         WF_FREE_THEME | WF_RESTORE_BACKGROUND);
 
       set_wstate(buf, FC_WS_NORMAL);
       buf->action = spy_steal_callback;
@@ -493,11 +493,11 @@ static int spy_steal_popup_shared(struct widget *pwidget)
     copy_chars_to_utf8_str(pstr, astr_str(&str));
     astr_free(&str);
 
-    surf = create_select_tech_icon(pstr, tech, FULL_MODE);
+    surf = create_select_tech_icon(pstr, tech, TIM_FULL_MODE);
 
     buf = create_icon2(surf, pwindow->dst,
-                        (WF_FREE_THEME | WF_RESTORE_BACKGROUND
-                         | WF_FREE_DATA));
+                       (WF_FREE_THEME | WF_RESTORE_BACKGROUND
+                        | WF_FREE_DATA));
     set_wstate(buf, FC_WS_NORMAL);
     buf->action = spy_steal_callback;
     buf->data.cont = cont;
@@ -530,7 +530,7 @@ static int spy_steal_popup_shared(struct widget *pwidget)
   area.h = count * buf->size.h + adj_size(2);
 
   /* alloca window theme and win background buffer */
-  surf = theme_get_background(theme, BACKGROUND_SPYSTEALDLG);
+  surf = theme_get_background(active_theme, BACKGROUND_SPYSTEALDLG);
   if (resize_window(pwindow, surf, NULL,
                     (pwindow->size.w - pwindow->area.w) + area.w,
                     (pwindow->size.h - pwindow->area.h) + area.h)) {
@@ -766,6 +766,7 @@ static int simple_action_callback(struct widget *pwidget)
     break;
   case ATK_UNITS:
   case ATK_TILE:
+  case ATK_EXTRAS:
     target_id = diplomat_dlg->target_ids[ATK_TILE];
     if (NULL == index_to_tile(&(wld.map), target_id)) {
       /* TODO: Should this be possible at all? If not: add assertion. */
@@ -849,7 +850,7 @@ void popdown_diplomat_dialog(void)
 
     is_unit_move_blocked = FALSE;
     popdown_window_group_dialog(diplomat_dlg->pdialog->begin_widget_list,
-				diplomat_dlg->pdialog->end_widget_list);
+                                diplomat_dlg->pdialog->end_widget_list);
     FC_FREE(diplomat_dlg->pdialog->scroll);
     FC_FREE(diplomat_dlg->pdialog);
     FC_FREE(diplomat_dlg);
@@ -933,6 +934,7 @@ static void action_entry(const action_id act,
     buf->data.unit = tgt_unit;
     break;
   case ATK_TILE:
+  case ATK_EXTRAS:
   case ATK_UNITS:
     buf->data.tile = tgt_tile;
     break;
@@ -1023,6 +1025,7 @@ void popup_action_selection(struct unit *actor_unit,
 
   diplomat_dlg->target_ids[ATK_UNITS] = tile_index(target_tile);
   diplomat_dlg->target_ids[ATK_TILE] = tile_index(target_tile);
+  diplomat_dlg->target_ids[ATK_EXTRAS] = tile_index(target_tile);
 
   /* No target building or target tech supplied. (Feb 2020) */
   diplomat_dlg->sub_target_id[ASTK_BUILDING] = B_LAST;
@@ -1078,6 +1081,17 @@ void popup_action_selection(struct unit *actor_unit,
   action_iterate(act) {
     if (action_id_get_actor_kind(act) == AAK_UNIT
         && action_id_get_target_kind(act) == ATK_TILE) {
+      action_entry(act, act_probs,
+                   actor_unit, target_tile, NULL, NULL,
+                   pwindow, &area);
+    }
+  } action_iterate_end;
+
+  /* Unit acting against a tile's extras. */
+
+  action_iterate(act) {
+    if (action_id_get_actor_kind(act) == AAK_UNIT
+        && action_id_get_target_kind(act) == ATK_EXTRAS) {
       action_entry(act, act_probs,
                    actor_unit, target_tile, NULL, NULL,
                    pwindow, &area);
@@ -1155,9 +1169,9 @@ void popup_action_selection(struct unit *actor_unit,
 
   buf = pwindow->prev;
   setup_vertical_widgets_position(1,
-	area.x,
-  	area.y + 1, area.w, 0,
-	diplomat_dlg->pdialog->begin_widget_list, buf);
+        area.x,
+        area.y + 1, area.w, 0,
+        diplomat_dlg->pdialog->begin_widget_list, buf);
 
   /* --------------------- */
   /* redraw */
@@ -1406,8 +1420,8 @@ void popup_sabotage_dialog(struct unit *actor, struct city *pcity,
   city_built_iterate(pcity, pimprove) {
     if (pimprove->sabotage > 0) {
       create_active_iconlabel(buf, pwindow->dst, pstr,
-	      (char *) city_improvement_name_translation(pcity, pimprove),
-				      sabotage_impr_callback);
+             (char *) city_improvement_name_translation(pcity, pimprove),
+                                      sabotage_impr_callback);
       buf->data.cont = cont;
       set_wstate(buf, FC_WS_NORMAL);
 
@@ -1614,7 +1628,7 @@ void popdown_incite_dialog(void)
 
     is_unit_move_blocked = FALSE;
     popdown_window_group_dialog(incite_dlg->pdialog->begin_widget_list,
-				incite_dlg->pdialog->end_widget_list);
+                                incite_dlg->pdialog->end_widget_list);
     FC_FREE(incite_dlg->pdialog);
     FC_FREE(incite_dlg);
     flush_dirty();
@@ -1809,9 +1823,9 @@ void popup_incite_dialog(struct unit *actor, struct city *pcity, int cost,
 
   buf = buf->prev;
   setup_vertical_widgets_position(1,
-	area.x,
-  	area.y + 1, area.w, 0,
-	incite_dlg->pdialog->begin_widget_list, buf);
+        area.x,
+        area.y + 1, area.w, 0,
+        incite_dlg->pdialog->begin_widget_list, buf);
 
   /* --------------------- */
   /* redraw */
@@ -2037,9 +2051,9 @@ void popup_bribe_dialog(struct unit *actor, struct unit *punit, int cost,
 
   buf = buf->prev;
   setup_vertical_widgets_position(1,
-	area.x,
-  	area.y + 1, area.w, 0,
-	bribe_dlg->pdialog->begin_widget_list, buf);
+        area.x,
+        area.y + 1, area.w, 0,
+        bribe_dlg->pdialog->begin_widget_list, buf);
 
   /* --------------------- */
   /* redraw */

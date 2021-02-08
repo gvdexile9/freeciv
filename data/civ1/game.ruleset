@@ -11,8 +11,8 @@
 
 [datafile]
 description="Civ1-style game rules for Freeciv"
-options="+Freeciv-ruleset-Devel-2017.Jan.02"
-format_version=20
+options="+Freeciv-ruleset-Devel-2021.Feb.06"
+format_version=30
 
 ; This section contains meta information for freeciv-ruledit to recreate the ruleset
 ; file in a form wanted. These have no in-game effect whatsoever
@@ -235,25 +235,21 @@ if_attacker =
     }
 
 [actions]
-; If force_trade_route is set to TRUE it is illegal for an actor unit to
-; enter the marketplace of a city if it can establish a trade route to it
-; in stead.
-force_trade_route = TRUE
+; Forbid "Enter Marketplace" if any one of the listed actions are legal.
+enter_marketplace_blocked_by = "Establish Trade Route"
 
-; If force_capture_units is set to TRUE it is illegal for an actor unit to
-; bombard, explode nuclear or perform a regular attack against a tile if
-; it can capture units on it in stead.
-force_capture_units = FALSE
+; Forbid "Attack" if any one of the listed actions are legal.
+attack_blocked_by = "Explode Nuclear", "Nuke City", "Nuke Units"
 
-; If force_bombard is set to TRUE it is illegal for an actor unit to
-; explode nuclear or perform a regular attack against a tile if it can
-; bombard it in stead.
-force_bombard = FALSE
+; Forbid "Suicide Attack" if any one of the listed actions are legal.
+suicide_attack_blocked_by = "Explode Nuclear", "Nuke City", "Nuke Units"
 
-; If force_explode_nuclear is set to TRUE it is illegal for an actor unit
-; to perform a regular attack against a tile if it can do explode nuclear
-; in stead.
-force_explode_nuclear = TRUE
+; Forbid "Conquer City" if any one of the listed actions are legal.
+conquer_city_blocked_by = "Explode Nuclear", "Nuke City", "Nuke Units",
+                          "Attack", "Suicide Attack"
+
+; Forbid regular unit move if one of the actions below is legal.
+move_is_blocked_by = "Transport Disembark"
 
 ; If poison_empties_food_stock is set to TRUE a successful "Poison City"
 ; or "Poison City Escape" will empty the food stock.
@@ -406,9 +402,6 @@ ui_name_clean_pollution = _("Clean %sPollution%s")
 
 ; /* TRANS: _Fortify (100% chance of success). */
 ui_name_fortify = _("%sFortify%s")
-
-; /* TRANS: _Sentry (100% chance of success). */
-ui_name_sentry = _("%sSentry%s")
 
 ; /* TRANS: Build _Road (100% chance of success). */
 ui_name_road = _("Build %sRoad%s")
@@ -890,9 +883,6 @@ target_reqs    =
       ; use "Transport Board" from inside the city
       "CityTile", "Center", "Local", FALSE
     }
-
-[actionenabler_sentry]
-action        = "Sentry Unit"
 
 [borders]
 ; Base border radius from city.

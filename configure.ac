@@ -2,7 +2,7 @@ dnl configure.ac for freeciv
 dnl Process this file with autoconf to produce a configure script.
 
 AC_INIT([Freeciv], m4_esyscmd([./fc_version | tr -d '\n']),
-        [https://www.freelists.org/list/freeciv-dev],
+        [https://osdn.net/projects/freeciv/ticket/],
         [freeciv], [http://www.freeciv.org/])
 AC_PREREQ(2.65)
 
@@ -194,6 +194,7 @@ AM_CONDITIONAL(SERVER, test x$server = xyes)
 
 dnl Host type variable defaults
 MINGW=no
+HAIKU=no
 
 dnl Settings specific to host OS
 case "$host_os" in
@@ -208,6 +209,10 @@ case "$host_os" in
 
     dnl Without WINSOCK2, use: LIBS="$LIBS -lwsock32"
     LIBS="${LIBS} -lws2_32"
+    ;;
+  *haiku*)
+    HAIKU=yes
+    LIBS="$LIBS -lnetwork"
     ;;
 esac
 
@@ -340,8 +345,20 @@ AC_ARG_ENABLE([dev-save-compat],
 AS_IF([test $dev_save_compat != 0],
       [AC_DEFINE([FREECIV_DEV_SAVE_COMPAT], [1],
                  [Development version save game compatibility])
+       AC_DEFINE([FREECIV_DEV_SAVE_COMPAT_3_2], [1],
+                 [Development version save game compatibility - 3.2 development])
        AC_DEFINE([FREECIV_DEV_SAVE_COMPAT_3_1], [1],
                  [Development version save game compatibility - 3.1 development])])
+
+AC_ARG_ENABLE([patient-connect],
+  AS_HELP_STRING([--enable-patient-connect=yes/no],
+                 [enable client to be very patient in connecting spawned server]),
+  [case "${enableval}" in
+    yes) AC_DEFINE([FREECIV_PATIENT_CONNECT], [1],
+                   [Client is very patient when connecting to spawned server]) ;;
+    no) ;;
+    *) AC_MSG_ERROR([bad value ${enableval} for --enable-patient-connect]) ;;
+  esac])
 
 dnl set default values
 mapimg_all=auto
@@ -734,7 +751,6 @@ case "$host_os" in
   *haiku*)
     dnl Haiku specific settings
     AC_DEFINE([ALWAYS_ROOT], [1], [Can execute program as root - Haiku])
-    LIBS="$LIBS -lnetwork"
     ;;
 
   *amigaos*)
@@ -1009,6 +1025,12 @@ AC_DEFINE_UNQUOTED([FREECIV_AI_MOD_LAST], [(${fc_ai_last})], [Max number of AI m
 
 AC_DEFINE_UNQUOTED([AI_MOD_DEFAULT], ["${default_ai_set}"], [Default ai type name])
 
+if test "x$MINGW" = "xyes" ; then
+  MWINDOWS_FLAG="-mwindows"
+else
+  MWINDOWS_FLAG=""
+fi
+
 dnl Check and choose clients
 if test "x$client" != "xno"; then
 
@@ -1154,7 +1176,7 @@ if test "x$req_fcmp_gtk3" = "xyes" ||
   if test "x$MINGW" = "xyes"; then
     dnl Required to compile gtk3 on Windows platform
     mp_gtk3_cflags="$mp_gtk3_cflags -mms-bitfields"
-    mp_gtk3_ldflags="$mp_gtk3_ldflags -mwindows"
+    mp_gtk3_ldflags="$mp_gtk3_ldflags $MWINDOWS_FLAG"
   fi
 
   if test "x$modinst" = "xauto" ; then
@@ -1179,10 +1201,10 @@ if test "x$req_fcmp_gtk4" = "xyes" ||
   fcmp_list="$fcmp_list gtk4"
   mp_gtk4_cflags="$GTK4_MP_CFLAGS $GTHREAD_GTK4_CFLAGS"
   mp_gtk4_libs="$GTK4_MP_LIBS $GTHREAD_GTK4_LIBS"
-  if test "x$MINGW32" = "xyes"; then
+  if test "x$MINGW" = "xyes"; then
     dnl Required to compile gtk4 on Windows platform
     mp_gtk4_cflags="$mp_gtk4_cflags -mms-bitfields"
-    mp_gtk4_ldflags="$mp_gtk4_ldflags -mwindows"
+    mp_gtk4_ldflags="$mp_gtk4_ldflags $MWINDOWS_FLAG"
   fi
 
   if test "x$modinst" = "xauto" ; then
@@ -1207,7 +1229,7 @@ if test "x$req_fcmp_qt" = "xyes" ||
 
        mp_qt_cppflags=$FC_QT_CPPFLAGS
        mp_qt_cxxflags=$FC_QT_CXXFLAGS
-       mp_qt_libs=$FC_QT_LIBS
+       mp_qt_libs="$FC_QT_LIBS $MWINDOWS_FLAG"
 
        if test "x$modinst" = "xauto" ; then
          modinst=found
@@ -1272,6 +1294,7 @@ if test "x$ruledit" = "xyes" || test "x$ruledit" = "xtest" ; then
       ruledit_cxxflags=$FC_QT_CXXFLAGS
       ruledit_libs=$FC_QT_LIBS
       ruledit=yes
+      ruledit_libs="$ruledit_libs $MWINDOWS_FLAG"
     elif test "x$ruledit" = "xyes" ; then
       AC_MSG_ERROR([$qt_ver not found for building freeciv-ruledit])
     fi

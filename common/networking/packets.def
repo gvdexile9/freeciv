@@ -329,7 +329,7 @@ type MOVEFRAGS          = UINT16
 type PHASE              = SINT16
 type TURN               = SINT16
 type XYSIZE             = UINT16
-type YEAR               = SINT16
+type YEAR               = SINT32
 type CITIZENS           = UINT8
 
 /****************************************************
@@ -541,6 +541,7 @@ PACKET_GAME_INFO = 16; sc, is-info
   UINT8 nuke_pop_loss_pct;
   UINT8 nuke_defender_survival_chance_pct;
   UINT16 min_city_center_output[O_LAST];
+  BV_ACTIONS move_is_blocked_by;
   BOOL muuk_food_wipe;
   BOOL muuk_gold_wipe;
   BOOL muuk_shield_wipe;

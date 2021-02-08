@@ -10,32 +10,34 @@
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
 ***********************************************************************/
+#ifndef FC__COUNTERS_H
+#define FC__COUNTERS_H
 
-#ifndef FC__REPODLGS_H
-#define FC__REPODLGS_H
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
-/* SDL2 */
-#ifdef SDL2_PLAIN_INCLUDE
-#include <SDL.h>
-#else  /* SDL2_PLAIN_INCLUDE */
-#include <SDL2/SDL.h>
-#endif /* SDL2_PLAIN_INCLUDE */
+enum counter_type { COUNTER_OWNED = 0, COUNTER_COUNT };
 
-/* client/gui-sdl2 */
-#include "gui_string.h"
+enum counter_target { CTGT_CITY };
 
-#include "repodlgs_g.h"
+/* Space for one counter of each type */
+#define MAX_COUNTERS COUNTER_COUNT
 
-enum tech_info_mode {
-  TIM_FULL_MODE,
-  TIM_MED_MODE,
-  TIM_SMALL_MODE
+struct counter
+{
+  const char *rule_name;
+  enum counter_type type;
+  enum counter_target target;
+  int id;     /* id in global counters array */
+  int index;  /* index in specific (city/player/world) array */
 };
 
-SDL_Surface *create_select_tech_icon(utf8_str *pstr, Tech_type_id tech_id,
-                                     enum tech_info_mode mode);
-void science_report_dialogs_popdown_all(void);
-void economy_report_dialog_popdown(void);
-void units_report_dialog_popdown(void);
+void counters_init(void);
+void counters_free(void);
 
-#endif /* FC__REPODLGS_H */
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
+
+#endif  /* FC__COUNTERS_H */

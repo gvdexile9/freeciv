@@ -9,8 +9,8 @@
 
 [datafile]
 description="Granularity technology data for Freeciv"
-options="+Freeciv-ruleset-Devel-2017.Jan.02"
-format_version=20
+options="+Freeciv-ruleset-Devel-2021.Feb.06"
+format_version=30
 
 [control]
 ; Names for custom tech flags. There can be up to 8 of these.
@@ -197,6 +197,18 @@ flags       = ""
 graphic     = "a.masonry"
 graphic_alt = "-"
 ;helptext    =
+
+[advance_pottery]
+name        = _("Pottery")
+req1        = "Fire"
+req2        = "None"
+flags       = ""
+graphic     = "a.pottery"
+graphic_alt = "-"
+; /* xgettext:no-c-format */
+helptext    = _("\
+As food can be stored, granary is set to 15% full when city grows.\
+")
 
 [advance_road_building]
 name        = _("Road Building")

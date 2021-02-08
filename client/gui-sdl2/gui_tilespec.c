@@ -60,21 +60,22 @@ static SDL_Surface *neutral_tech_icon;
 static SDL_Surface *none_tech_icon;
 static SDL_Surface *future_tech_icon;
 
-#define load_GUI_surface(_spr_, _struct_, _surf_, _tag_)	  \
+#define load_gui_surface(_spr_, _struct_, _surf_, _tag_)	  \
 do {								  \
-  _spr_ = theme_lookup_sprite_tag_alt(theme, LOG_FATAL, _tag_, "", "", ""); \
+  _spr_ = theme_lookup_sprite_tag_alt(active_theme, LOG_FATAL,     \
+                                      _tag_, "", "", "");          \
   fc_assert_action(_spr_ != NULL, break);                          \
   _struct_->_surf_ = GET_SURF_REAL(_spr_);                           \
 } while (FALSE)
 
 #define load_theme_surface(spr, surf, tag)		\
-	load_GUI_surface(spr, current_theme, surf, tag)
+	load_gui_surface(spr, current_theme, surf, tag)
 
 #define load_city_icon_surface(spr, surf, tag)        \
-        load_GUI_surface(spr, icons, surf, tag)
+        load_gui_surface(spr, icons, surf, tag)
 
 #define load_order_theme_surface(spr, surf, tag)	\
-        load_GUI_surface(spr, current_theme, surf, tag);
+        load_gui_surface(spr, current_theme, surf, tag);
 
 /***************************************************************************//**
   Reload small citizens "style" icons.
@@ -134,7 +135,8 @@ void reload_citizens_icons(int style)
 void tilespec_setup_city_gfx(void)
 {
   struct sprite *spr =
-    theme_lookup_sprite_tag_alt(theme, LOG_FATAL, "theme.city", "", "", "");
+    theme_lookup_sprite_tag_alt(active_theme, LOG_FATAL,
+                                "theme.city", "", "", "");
 
   city_surf = (spr ? adj_surf(GET_SURF_REAL(spr)) : NULL);
 
@@ -314,13 +316,11 @@ void tilespec_setup_theme(void)
   load_theme_surface(buf, save_icon, "theme.SAVE_button");
   load_theme_surface(buf, load_icon, "theme.LOAD_button");
   load_theme_surface(buf, delete_icon, "theme.DELETE_button");
-  load_theme_surface(buf, borders_icon, "theme.BORDERS_button");
   /* ------------------------------ */
   load_theme_surface(buf, tech_tree_icon, "theme.tech_tree");
   /* ------------------------------ */
 
   load_order_theme_surface(buf, order_icon, "theme.order_empty");
-  load_order_theme_surface(buf, OAutoAtt_Icon, "theme.order_auto_attack");
   load_order_theme_surface(buf, o_autoconnect_icon, "theme.order_auto_connect");
   load_order_theme_surface(buf, o_autoexp_icon, "theme.order_auto_explorer");
   load_order_theme_surface(buf, o_autosett_icon, "theme.order_auto_settler");
@@ -484,7 +484,7 @@ SDL_Surface *get_city_gfx(void)
 *******************************************************************************/
 void draw_intro_gfx(void)
 {
-  SDL_Surface *intro = theme_get_background(theme, BACKGROUND_MAINPAGE);
+  SDL_Surface *intro = theme_get_background(active_theme, BACKGROUND_MAINPAGE);
 
   if (intro->w != main_window_width()) {
     SDL_Surface *tmp = resize_surface(intro, main_window_width(),

@@ -38,9 +38,11 @@ extern "C" {
 #define SPECENUM_VALUE2NAME N_("unit stacks")
 #define SPECENUM_VALUE3 ATK_TILE
 #define SPECENUM_VALUE3NAME N_("tiles")
+#define SPECENUM_VALUE4 ATK_EXTRAS
+#define SPECENUM_VALUE4NAME N_("tile extras")
 /* No target except the actor itself. */
-#define SPECENUM_VALUE4 ATK_SELF
-#define SPECENUM_VALUE4NAME N_("itself")
+#define SPECENUM_VALUE5 ATK_SELF
+#define SPECENUM_VALUE5NAME N_("itself")
 #define SPECENUM_COUNT ATK_COUNT
 #include "specenum_gen.h"
 
@@ -210,8 +212,8 @@ extern "C" {
 #define SPECENUM_VALUE72NAME "Spread Plague"
 #define SPECENUM_VALUE73 ACTION_SPY_ATTACK
 #define SPECENUM_VALUE73NAME "Spy Attack"
-#define SPECENUM_VALUE74 ACTION_SENTRY
-#define SPECENUM_VALUE74NAME "Sentry Unit"
+#define SPECENUM_VALUE74 ACTION_CONQUER_EXTRAS
+#define SPECENUM_VALUE74NAME "Conquer Extras"
 #define SPECENUM_VALUE75 ACTION_USER_ACTION1
 #define SPECENUM_VALUE75NAME "User Action 1"
 #define SPECENUM_VALUE76 ACTION_USER_ACTION2
@@ -591,9 +593,6 @@ bool action_distance_inside_max(const struct action *action,
 
 bool action_would_be_blocked_by(const struct action *blocked,
                                 const struct action *blocker);
-#define action_id_would_be_blocked_by(blocked_id, blocker_id)             \
-  action_would_be_blocked_by(action_by_number(blocked_id),                \
-                             action_by_number(blocker_id))
 
 int action_get_role(const struct action *paction);
 #define action_id_get_role(act_id)                                        \
@@ -625,6 +624,8 @@ int action_max_range_default(int act);
 const char *action_target_kind_ruleset_var_name(int act);
 const char *action_actor_consuming_always_ruleset_var_name(action_id act);
 
+const char *action_blocked_by_ruleset_var_name(const struct action *act);
+
 struct action_enabler_list *
 action_enablers_for_action(action_id action);
 
@@ -650,7 +651,7 @@ action_enabler_vector_by_number(const void *enabler,
                                 req_vec_num_in_item vec);
 const char *action_enabler_vector_by_number_name(req_vec_num_in_item vec);
 
-struct action *action_is_blocked_by(const action_id act_id,
+struct action *action_is_blocked_by(const struct action *act,
                                     const struct unit *actor_unit,
                                     const struct tile *target_tile,
                                     const struct city *target_city,
@@ -673,6 +674,11 @@ bool is_action_enabled_unit_on_tile(const action_id wanted_action,
                                     const struct tile *target_tile,
                                     const struct extra_type *target_extra);
 
+bool is_action_enabled_unit_on_extras(const action_id wanted_action,
+                                      const struct unit *actor_unit,
+                                      const struct tile *target,
+                                      const struct extra_type *tgt_extra);
+
 bool is_action_enabled_unit_on_self(const action_id wanted_action,
                                     const struct unit *actor_unit);
 
@@ -692,6 +698,11 @@ struct act_prob action_prob_vs_tile(const struct unit *actor,
                                     const action_id act_id,
                                     const struct tile *victims,
                                     const struct extra_type *target_extra);
+
+struct act_prob action_prob_vs_extras(const struct unit *actor,
+                                      const action_id act_id,
+                                      const struct tile *target,
+                                      const struct extra_type *tgt_extra);
 
 struct act_prob action_prob_self(const struct unit *actor,
                                  const action_id act_id);
@@ -735,6 +746,15 @@ action_speculate_unit_on_tile(action_id act_id,
                               bool omniscient_cheat,
                               const struct tile *target_tile,
                               const struct extra_type *target_extra);
+
+struct act_prob
+action_speculate_unit_on_extras(action_id act_id,
+                                const struct unit *actor,
+                                const struct city *actor_home,
+                                const struct tile *actor_tile,
+                                bool omniscient_cheat,
+                                const struct tile *target_tile,
+                                const struct extra_type *target_extra);
 
 struct act_prob
 action_speculate_unit_on_self(action_id act_id,

@@ -6,6 +6,8 @@ if not get_option('ack_experimental')
 endif
 
 add_global_arguments('-Wno-nonnull-compare', language : 'c')
+add_global_arguments('-DGDK_VERSION_MIN_REQUIRED=GDK_VERSION_3_20', language : 'c')
+add_global_arguments('-DGDK_VERSION_MAX_ALLOWED=GDK_VERSION_3_22', language : 'c')
 
 add_global_arguments('-fPIC', language : 'cpp')
 add_global_arguments('-DQT_DISABLE_DEPRECATED_BEFORE=0x050b00', language : 'cpp')
@@ -454,6 +456,7 @@ common_lib = library('freeciv',
   'common/city.c',
   'common/clientutils.c',
   'common/combat.c',
+  'common/counters.c',
   'common/culture.c',
   'common/diptreaty.c',
   'common/disaster.c',
@@ -633,7 +636,7 @@ executable('freeciv-server',
 
 
 install_data(
-  'data/ruledit/comments-3.1.txt',
+  'data/ruledit/comments-3.2.txt',
   install_dir : join_paths(get_option('datadir'), 'freeciv/ruledit')
   )
 

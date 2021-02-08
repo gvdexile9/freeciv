@@ -101,15 +101,16 @@ MinHitPoints:    Local
 MinSize is the minimum size of a city required.
 AI is ai player difficulty level.
 TerrainClass is either "Land" or "Oceanic".
-CityTile is either "Center" (city center) or "Claimed" (owned).
+CityTile is "Center" (city center), "Claimed" (tile owned) or
+"Extras Owned" (extra on tile owned).
 CityStatus is "OwnedByOriginal"
 DiplRel is a diplomatic relationship.
 MaxUnitsOnTile is about the number of units present on a tile.
 UnitState is "Transported", "Transporting", "OnNativeTile", "OnLivableTile",
 "InNativeExtra", "OnDomesticTile", "MovedThisTurn" or "HasHomeCity".
-Activity is "Idle", "Pollution", "Mine", "Irrigate", "Fortified", "Fortress", "Sentry",
-"Pillage", "Goto", "Explore", "Transform", "Fortifying", "Fallout", "Base", "Road",
-"Convert", "Cultivate", or "Plant".
+Activity is "Idle", "Pollution", "Mine", "Irrigate", "Fortified",
+"Pillage", "Transform", "Fortifying", "Fallout",
+"Base", "Road", "Convert", "Cultivate", or "Plant".
 MinMoveFrags is the minimum move fragments the unit must have left.
 MinCalFrag is the minimum sub-year division the calendar must have reached,
 if enabled (see [calendar].fragments in game.ruleset).

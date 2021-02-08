@@ -333,6 +333,7 @@ static bool action_is_hostile(action_id act_id)
   case ACTRES_PILLAGE:
   case ACTRES_SPY_ATTACK:
   case ACTRES_SPY_SPREAD_PLAGUE:
+  case ACTRES_CONQUER_EXTRAS:
     return TRUE;
   case ACTRES_ESTABLISH_EMBASSY:
   case ACTRES_TRADE_ROUTE:
@@ -353,7 +354,6 @@ static bool action_is_hostile(action_id act_id)
   case ACTRES_CLEAN_POLLUTION:
   case ACTRES_CLEAN_FALLOUT:
   case ACTRES_FORTIFY:
-  case ACTRES_SENTRY:
   case ACTRES_ROAD:
   case ACTRES_CONVERT:
   case ACTRES_BASE:
@@ -630,7 +630,8 @@ static void local_dipl_rel_action_cache_set(struct unit_type *putype)
       if (requirement_fulfilled_by_unit_type(putype,
                                              &(enabler->actor_reqs))
           && action_id_get_actor_kind(enabler->action) == AAK_UNIT
-          && (action_id_get_target_kind(enabler->action) != ATK_TILE
+          && ((action_id_get_target_kind(enabler->action) != ATK_TILE
+               && action_id_get_target_kind(enabler->action) != ATK_EXTRAS)
               /* No diplomatic relation to Nature */
               || !does_req_contradicts_reqs(&tile_is_claimed,
                                             &enabler->target_reqs))) {
@@ -1108,6 +1109,11 @@ bool utype_pays_for_regular_move_to_tgt(const struct action *paction,
 
   if (action_has_result(paction, ACTRES_CONQUER_CITY)) {
     /* Moves into the city to occupy it. */
+    return TRUE;
+  }
+
+  if (action_has_result(paction, ACTRES_CONQUER_EXTRAS)) {
+    /* Moves into the tile with the extras to capture them. */
     return TRUE;
   }
 

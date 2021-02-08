@@ -2798,26 +2798,61 @@ char *helptext_unit(char *buf, size_t bufsz, struct player *pplayer,
           }
         }
         break;
+      case ACTRES_CONQUER_EXTRAS:
+        {
+          const char *targets[extra_count()];
+          int j = 0;
+
+          extra_type_by_cause_iterate(EC_BASE, pextra) {
+            fc_assert_action(pextra->data.base, continue);
+            if (!territory_claiming_base(pextra->data.base)) {
+              /* Hard requirement */
+              continue;
+            }
+
+            if (!is_native_extra_to_uclass(pextra,
+                                           utype_class(utype))) {
+              /* Hard requirement */
+              continue;
+            }
+
+            targets[j++] = extra_name_translation(pextra);
+          } extra_type_by_cause_iterate_end;
+
+          if (j > 0) {
+            struct astring list = ASTRING_INIT;
+            /* TRANS: indented unit action property, preserve
+             * leading spaces.
+             * %s is a list of extra types separated by "and". */
+            cat_snprintf(buf, bufsz, _("  * done to %s.\n"),
+                         astr_build_and_list(&list, targets, j));
+            astr_free(&list);
+          }
+        }
+        break;
       default:
         /* No action specific details. */
         break;
       }
 
       i = 0;
-      action_iterate(blocker) {
-        if (!utype_can_do_action(utype, blocker)) {
+      action_iterate(blocker_id) {
+        const struct action *blocker = action_by_number(blocker_id);
+
+        if (!utype_can_do_action(utype, blocker->id)) {
           /* Can't block since never legal. */
           continue;
         }
 
-        if (action_id_would_be_blocked_by(act, blocker)) {
-          /* action name alone can be MAX_LEN_NAME, leave space for extra characters */
+        if (action_would_be_blocked_by(paction, blocker)) {
+          /* action name alone can be MAX_LEN_NAME, leave space for extra
+           * characters */
           int maxlen = MAX_LEN_NAME + 16;
           char *quoted = fc_malloc(maxlen);
 
           fc_snprintf(quoted, maxlen,
                       /* TRANS: %s is an action that can block another. */
-                      _("\'%s\'"), action_id_name_translation(blocker));
+                      _("\'%s\'"), action_name_translation(blocker));
           blockers[i] = quoted;
 
           i++;
@@ -3753,14 +3788,6 @@ void helptext_extra(char *buf, size_t bufsz, struct player *pplayer,
 		  "if this tile is within 3 tiles of a friendly city.\n"));
       }
 
-      if (pbase != NULL) {
-        if (territory_claiming_base(pbase)) {
-          CATLSTR(buf, bufsz,
-                  /* TRANS: indented; preserve leading spaces */
-                  _("  * Can be captured by such units if at war with the "
-                    "nation that currently owns it.\n"));
-        }
-      }
       if (pextra->defense_bonus) {
         cat_snprintf(buf, bufsz,
                      /* TRANS: indented; preserve leading spaces */
@@ -3768,6 +3795,27 @@ void helptext_extra(char *buf, size_t bufsz, struct player *pplayer,
                        "tile.\n"),
                      pextra->defense_bonus);
       }
+    }
+  }
+
+  if (pbase != NULL && territory_claiming_base(pbase)) {
+    const char *conquerors[utype_count()];
+    int i = 0;
+
+    unit_type_iterate(ut) {
+      if (utype_can_do_action_result(ut, ACTRES_CONQUER_EXTRAS)
+          && is_native_extra_to_uclass(pextra, utype_class(ut))) {
+        conquerors[i++] = utype_name_translation(ut);
+      }
+    } unit_type_iterate_end;
+
+    if (i > 0) {
+      struct astring list = ASTRING_INIT;
+      cat_snprintf(buf, bufsz,
+                   /* TRANS: %s is a list of unit types separated by "and". */
+                   _("* Can be conquered by %s.\n"),
+                   astr_build_and_list(&list, conquerors, i));
+      astr_free(&list);
     }
   }
 

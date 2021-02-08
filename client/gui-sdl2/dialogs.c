@@ -2467,7 +2467,7 @@ void popup_government_dialog(void)
   area.h = MAX(area.h, j * (max_h + adj_size(10)) + adj_size(5));
 
   /* create window background */
-  logo = theme_get_background(theme, BACKGROUND_CHOOSEGOVERNMENTDLG);
+  logo = theme_get_background(active_theme, BACKGROUND_CHOOSEGOVERNMENTDLG);
   if (resize_window(pwindow, logo, NULL,
                     (pwindow->size.w - pwindow->area.w) + area.w,
                     (pwindow->size.h - pwindow->area.h) + area.h)) {
@@ -2776,7 +2776,7 @@ static int style_callback(struct widget *pwidget)
 {
   if (PRESSED_EVENT(main_data.event)) {
     struct nation_info *setup = (struct nation_info *)(nation_dlg->end_widget_list->data.ptr);
-    struct widget *gui = get_widget_pointer_form_main_list(MAX_ID - 1000 -
+    struct widget *gui = get_widget_pointer_from_main_list(MAX_ID - 1000 -
                                                            setup->nation_style);
 
     set_wstate(gui, FC_WS_NORMAL);
@@ -3325,7 +3325,7 @@ void popup_races_dialog(struct player *pplayer)
   nation_dlg->begin_widget_list = pwidget;
   /* ---------------------------------------------------------- */
 
-  main_bg = theme_get_background(theme, BACKGROUND_NATIONDLG);
+  main_bg = theme_get_background(active_theme, BACKGROUND_NATIONDLG);
   if (resize_window(pwindow, main_bg, NULL, adj_size(640), adj_size(480))) {
     FREESURFACE(main_bg);
   }
@@ -3524,7 +3524,7 @@ void races_toggles_set_sensitive(void)
                 (!is_nation_pickable(nation) || nation->player),
                 nation_rule_name(nation));
 
-      nat = get_widget_pointer_form_main_list(MAX_ID - nation_index(nation));
+      nat = get_widget_pointer_from_main_list(MAX_ID - nation_index(nation));
       set_wstate(nat, FC_WS_DISABLED);
 
       if (nation_index(nation) == setup->nation) {
@@ -3536,7 +3536,7 @@ void races_toggles_set_sensitive(void)
   if (change) {
     do {
       setup->nation = fc_rand(get_playable_nation_count());
-      nat = get_widget_pointer_form_main_list(MAX_ID - setup->nation);
+      nat = get_widget_pointer_from_main_list(MAX_ID - setup->nation);
     } while (get_wstate(nat) == FC_WS_DISABLED);
 
     if (get_wstate(setup->name_edit) == FC_WS_PRESSED) {

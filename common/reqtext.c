@@ -2529,10 +2529,13 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
 
       switch (preq->source.value.citytile) {
       case CITYT_CENTER:
-        tile_property = "city centers";
+        tile_property = _("city centers");
         break;
       case CITYT_CLAIMED:
-        tile_property = "claimed tiles";
+        tile_property = _("claimed tiles");
+        break;
+      case CITYT_EXTRAS_OWNED:
+        tile_property = _("owned extras");
         break;
       case CITYT_LAST:
         fc_assert(preq->source.value.citytile != CITYT_LAST);
@@ -2599,7 +2602,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
 
       switch (preq->source.value.citystatus) {
       case CITYS_OWNED_BY_ORIGINAL:
-        city_property = "owned by original";
+        city_property = _("owned by original");
         break;
       case CITYS_LAST:
         fc_assert(preq->source.value.citystatus != CITYS_LAST);

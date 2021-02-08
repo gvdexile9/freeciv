@@ -74,12 +74,8 @@ void correct_size_bcgnd_surf(SDL_Surface *ptheme,
   Graphic is taken from ptheme surface and blit to new created image.
 
   Type of image depend of "state" parameter.
-    state = 0 - normal
-    state = 1 - selected
-    state = 2 - pressed
-    state = 3 - disabled
 **************************************************************************/
-SDL_Surface *create_bcgnd_surf(SDL_Surface *ptheme, Uint8 state,
+SDL_Surface *create_bcgnd_surf(SDL_Surface *ptheme, enum widget_state state,
                                Uint16 width, Uint16 height)
 {
   bool zoom;
@@ -109,7 +105,7 @@ SDL_Surface *create_bcgnd_surf(SDL_Surface *ptheme, Uint8 state,
 
   /* corrections II */
   if (((tile_count_height_mid *
-	tile_width_height_mid) + (tile_width_height_end * 2)) < height) {
+        tile_width_height_mid) + (tile_width_height_end * 2)) < height) {
     tile_count_height_mid++;
   }
 
@@ -267,7 +263,7 @@ struct widget *find_next_widget_for_key(struct widget *start_widget,
         && ((pwidget->mod & key.mod) || (pwidget->mod == key.mod))) {
       if (!((get_wstate(pwidget) == FC_WS_DISABLED)
             || ((get_wflags(pwidget) & WF_HIDDEN) == WF_HIDDEN))) {
-	return (struct widget *) pwidget;
+        return (struct widget *) pwidget;
       }
     }
     pwidget = pwidget->next;
@@ -284,7 +280,7 @@ struct widget *find_next_widget_for_key(struct widget *start_widget,
     set flags FW_Pressed
     redraw button ( pressed )
     refresh screen ( to see result )
-    wait 300 ms	( to see result :)
+    wait 300 ms ( to see result :)
     If exist (button callback function) then
       call (button callback function)
 
@@ -489,7 +485,8 @@ void redraw_widget_info_label(SDL_Rect *rect)
     pwidget->info_label->fgcol = color;
 
     info_label = create_filled_surface(text->w + adj_size(10), text->h + adj_size(6),
-                                       SDL_SWSURFACE, get_theme_color(COLOR_THEME_QUICK_INFO_BG));
+                                       SDL_SWSURFACE,
+                                       get_theme_color(COLOR_THEME_QUICK_INFO_BG));
 
     /* calculate start position */
     if ((pwidget->dst->dest_rect.y + pwidget->size.y) - info_label->h - adj_size(6) < 0) {
@@ -549,7 +546,7 @@ void redraw_widget_info_label(SDL_Rect *rect)
   Find ID in Widget's List ('gui_list') and return pointer to this
   Widget.
 **************************************************************************/
-struct widget *get_widget_pointer_form_ID(const struct widget *gui_list,
+struct widget *get_widget_pointer_from_id(const struct widget *gui_list,
                                           Uint16 id, enum scan_direction direction)
 {
   while (gui_list) {
@@ -570,9 +567,9 @@ struct widget *get_widget_pointer_form_ID(const struct widget *gui_list,
   Find ID in MAIN Widget's List ( begin_widget_list ) and return pointer to
   this Widgets.
 **************************************************************************/
-struct widget *get_widget_pointer_form_main_list(Uint16 id)
+struct widget *get_widget_pointer_from_main_list(Uint16 id)
 {
-  return get_widget_pointer_form_ID(begin_main_widget_list, id, SCAN_FORWARD);
+  return get_widget_pointer_from_id(begin_main_widget_list, id, SCAN_FORWARD);
 }
 
 /**********************************************************************//**
@@ -644,7 +641,7 @@ void del_widget_pointer_from_gui_list(struct widget *gui)
 }
 
 /**********************************************************************//**
-  Determinate if 'pGui' is first on WidgetList
+  Determinate if 'gui' is first on WidgetList
 
   NOTE: This is used by My (move) GUI Window mechanism.  Return TRUE if is
   first.
@@ -807,13 +804,13 @@ void set_new_group_start_pos(const struct widget *begin_group_widget_list,
 void move_group_to_front_of_gui_list(struct widget *begin_group_widget_list,
                                      struct widget *end_group_widget_list)
 {
-  struct widget *tmp_widget = end_group_widget_list , *pPrev = NULL;
+  struct widget *tmp_widget = end_group_widget_list, *prev = NULL;
   struct gui_layer *gui_layer = get_gui_layer(end_group_widget_list->dst->surface);
 
   /* Widget Pointer Management */
   while (tmp_widget) {
 
-    pPrev = tmp_widget->prev;
+    prev = tmp_widget->prev;
 
     /* tmp_widget->prev always exists because we
        don't do this to begin_main_widget_list */
@@ -833,7 +830,7 @@ void move_group_to_front_of_gui_list(struct widget *begin_group_widget_list,
       break;
     }
 
-    tmp_widget = pPrev;
+    tmp_widget = prev;
   }
 
   /* Window Buffer Management */
@@ -858,7 +855,6 @@ void move_group_to_front_of_gui_list(struct widget *begin_group_widget_list,
 void del_group_of_widgets_from_gui_list(struct widget *begin_group_widget_list,
                                         struct widget *end_group_widget_list)
 {
-  struct widget *bufWidget = NULL;
   struct widget *tmp_widget = end_group_widget_list;
 
   if (!end_group_widget_list) {
@@ -873,9 +869,10 @@ void del_group_of_widgets_from_gui_list(struct widget *begin_group_widget_list,
   tmp_widget = tmp_widget->prev;
 
   while (tmp_widget) {
+    struct widget *buf_widget = NULL;
 
-    bufWidget = tmp_widget->next;
-    del_widget_from_gui_list(bufWidget);
+    buf_widget = tmp_widget->next;
+    del_widget_from_gui_list(buf_widget);
 
     if (tmp_widget == begin_group_widget_list) {
       del_widget_from_gui_list(tmp_widget);
@@ -967,8 +964,8 @@ void group_set_area(struct widget *begin_group_widget_list,
  * ===================================================================== */
 
 /*
- *	Window Group  -	group with 'begin' and 'end' where
- *	windowed type widget is last on list ( 'end' ).
+ *      Window Group  - group with 'begin' and 'end' where
+ *      windowed type widget is last on list ( 'end' ).
  */
 
 /**********************************************************************//**
@@ -1012,13 +1009,13 @@ bool move_window_group_dialog(struct widget *begin_group_widget_list,
                               struct widget *end_group_widget_list)
 {
   bool ret = FALSE;
-  Sint16 oldX = end_group_widget_list->size.x, oldY = end_group_widget_list->size.y;
+  Sint16 old_x = end_group_widget_list->size.x, old_y = end_group_widget_list->size.y;
 
   if (move_window(end_group_widget_list)) {
     set_new_group_start_pos(begin_group_widget_list,
                             end_group_widget_list->prev,
-                            end_group_widget_list->size.x - oldX,
-                            end_group_widget_list->size.y - oldY);
+                            end_group_widget_list->size.x - old_x,
+                            end_group_widget_list->size.y - old_y);
     ret = TRUE;
   }
 

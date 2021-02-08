@@ -30,12 +30,12 @@
 #include "gui_string.h"
 
 #ifdef SMALL_SCREEN
-#define	WINDOW_TITLE_HEIGHT	10
+#define WINDOW_TITLE_HEIGHT 10
 #else
-#define	WINDOW_TITLE_HEIGHT	20
+#define WINDOW_TITLE_HEIGHT 20
 #endif
 
-#define MAX_ID			0xFFFF
+#define MAX_ID              0xFFFF
 
 /* Widget Types */
 enum widget_type {		/* allow 64 widgets type */
@@ -93,9 +93,9 @@ enum widget_flag {
 
 /* Widget states */
 enum widget_state {
-  FC_WS_NORMAL	        = 0,
+  FC_WS_NORMAL          = 0,
   FC_WS_SELECTED        = 1,
-  FC_WS_PRESSED	        = 2,
+  FC_WS_PRESSED         = 2,
   FC_WS_DISABLED        = 3
 };
 
@@ -173,7 +173,7 @@ struct widget {
 /* Struct of basic window group dialog ( without scrollbar ) */
 struct small_dialog {
   struct widget *begin_widget_list;
-  struct widget *end_widget_list;	/* window */
+  struct widget *end_widget_list;    /* window */
 };
 
 /* Struct of advanced window group dialog ( with scrollbar ) */
@@ -205,38 +205,38 @@ void del_main_list(void);
 struct widget *find_next_widget_at_pos(struct widget *start_widget, int x, int y);
 struct widget *find_next_widget_for_key(struct widget *start_widget, SDL_Keysym key);
 
-struct widget *get_widget_pointer_form_ID(const struct widget *gui_list,
+struct widget *get_widget_pointer_from_id(const struct widget *gui_list,
                                           Uint16 id,
                                           enum scan_direction direction);
 
-struct widget *get_widget_pointer_form_main_list(Uint16 id);
+struct widget *get_widget_pointer_from_main_list(Uint16 id);
 
 #define set_action(id, action_callback)	\
-	get_widget_pointer_form_main_list(id)->action = action_callback
+	get_widget_pointer_from_main_list(id)->action = action_callback
 
 #define set_key(id, keyb)	\
-	get_widget_pointer_form_main_list(id)->key = keyb
+	get_widget_pointer_from_main_list(id)->key = keyb
 
 #define set_mod(id, mod)	\
-	get_widget_pointer_form_main_list(id)->mod = mod
+	get_widget_pointer_from_main_list(id)->mod = mod
 
 #define enable(id)						\
 do {								\
-  struct widget *____gui = get_widget_pointer_form_main_list(id);	\
+  struct widget *____gui = get_widget_pointer_from_main_list(id);	\
   set_wstate(____gui, FC_WS_NORMAL);				\
 } while (FALSE)
 
 #define disable(id)						\
 do {								\
-  struct widget *____gui = get_widget_pointer_form_main_list(id);	\
+  struct widget *____gui = get_widget_pointer_from_main_list(id);	\
   set_wstate(____gui , FC_WS_DISABLED);				\
 } while (FALSE)
 
 #define show(id)	\
-  clear_wflag( get_widget_pointer_form_main_list(id), WF_HIDDEN)
+  clear_wflag( get_widget_pointer_from_main_list(id), WF_HIDDEN)
 
 #define hide(id)	\
-  set_wflag(get_widget_pointer_form_main_list(id), WF_HIDDEN)
+  set_wflag(get_widget_pointer_from_main_list(id), WF_HIDDEN)
 
 void widget_selected_action(struct widget *pwidget);
 Uint16 widget_pressed_action(struct widget *pwidget);
@@ -317,13 +317,13 @@ do {                                                                    \
 
 #define draw_frame_around_widget_on_surface(pwidget , pdest)		\
 do {                                                                    \
-  draw_frame(pdest, pwidget->size.x - pTheme->FR_Left->w, pwidget->size.y - pTheme->FR_Top->h, \
-             pwidget->size.w + pTheme->FR_Left->w + pTheme->FR_Right->w,\
-             pwidget->size.h + pTheme->FR_Top->h + pTheme->FR_Bottom->h);  \
+  draw_frame(pdest, pwidget->size.x - ptheme->FR_Left->w, pwidget->size.y - ptheme->FR_Top->h, \
+             pwidget->size.w + ptheme->FR_Left->w + ptheme->FR_Right->w,\
+             pwidget->size.h + ptheme->FR_Top->h + ptheme->FR_Bottom->h);  \
 } while (FALSE);
 
 #define draw_frame_around_widget(pwidget)				\
-	draw_frame_around_widget_on_surface(pwidget , pwidget->dst->surface)
+	draw_frame_around_widget_on_surface(pwidget, pwidget->dst->surface)
 
 /* Group */
 Uint16 redraw_group(const struct widget *begin_group_widget_list,
@@ -375,32 +375,32 @@ do {						\
   FREEWIDGET(__gui);				\
 } while (FALSE)
 
-#define del_ID_from_gui_list(ID)				\
+#define del_ID_from_gui_list(id)				\
 do {								\
-  struct widget *___ptmp = get_widget_pointer_form_main_list(ID);	\
+  struct widget *___ptmp = get_widget_pointer_from_main_list(id);	\
   del_widget_pointer_from_gui_list(___ptmp);			\
   FREEWIDGET(___ptmp);						\
 } while (FALSE)
 
-#define move_ID_to_front_of_gui_list(ID)	\
+#define move_ID_to_front_of_gui_list(id)	\
 	move_widget_to_front_of_gui_list(       \
-          get_widget_pointer_form_main_list(ID))
+          get_widget_pointer_from_main_list(id))
 
 #define del_group(begin_group_widget_list, end_group_widget_list)		\
 do {									\
   del_group_of_widgets_from_gui_list(begin_group_widget_list,		\
-					   end_group_widget_list);	\
+                                     end_group_widget_list);	\
   begin_group_widget_list = NULL;						\
   end_group_widget_list = NULL;						\
 } while (FALSE)
 
-#define enable_group(begin_group_widget_list, end_group_widget_list)	\
-	set_group_state(begin_group_widget_list, 				\
-			end_group_widget_list, FC_WS_NORMAL)
+#define enable_group(begin_group_widget_list, end_group_widget_list)    \
+        set_group_state(begin_group_widget_list,                        \
+                        end_group_widget_list, FC_WS_NORMAL)
 
-#define disable_group(begin_group_widget_list, end_group_widget_list)	\
-	set_group_state(begin_group_widget_list,	end_group_widget_list,	\
-			FC_WS_DISABLED)
+#define disable_group(begin_group_widget_list, end_group_widget_list)   \
+        set_group_state(begin_group_widget_list, end_group_widget_list, \
+                        FC_WS_DISABLED)
 
 /* Advanced Dialog */
 bool add_widget_to_vertical_scroll_widget_list(struct advanced_dialog *dlg,
@@ -412,7 +412,7 @@ bool del_widget_from_vertical_scroll_widget_list(struct advanced_dialog *dlg,
                                                  struct widget *pwidget);
 
 /* misc */
-SDL_Surface *create_bcgnd_surf(SDL_Surface *ptheme, Uint8 state,
+SDL_Surface *create_bcgnd_surf(SDL_Surface *ptheme, enum widget_state state,
                                Uint16 width, Uint16 height);
 void draw_frame(SDL_Surface *pdest, Sint16 start_x, Sint16 start_y,
                 Uint16 w, Uint16 h);
@@ -426,4 +426,4 @@ void draw_frame(SDL_Surface *pdest, Sint16 start_x, Sint16 start_y,
 #include "widget_scrollbar.h"
 #include "widget_window.h"
 
-#endif	/* FC__WIDGET_H */
+#endif  /* FC__WIDGET_H */

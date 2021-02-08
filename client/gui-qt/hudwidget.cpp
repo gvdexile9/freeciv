@@ -123,7 +123,7 @@ void hud_message_box::keyPressEvent(QKeyEvent *event)
 /************************************************************************//**
   Sets text and title and shows message box
 ****************************************************************************/
-void hud_message_box::set_text_title(QString s1, QString s2)
+int hud_message_box::set_text_title(QString s1, QString s2, bool return_exec)
 {
   QSpacerItem *spacer;
   QGridLayout *layout;
@@ -161,9 +161,12 @@ void hud_message_box::set_text_title(QString s1, QString s2)
              (parentWidget()->height() - h) / 2);
   p = parentWidget()->mapToGlobal(p);
   move(p);
-  show();
+  if (!return_exec) {
+    show ();
+  }
   m_timer.start();
   startTimer(45);
+  return (return_exec) ? exec () : 0;
 }
 
 /************************************************************************//**
@@ -2079,20 +2082,31 @@ void hud_battle_log::moveEvent(QMoveEvent *event)
 }
 
 /************************************************************************//**
+  Timer event inner foreach() loop. Implemented as separate method
+  to avoid compiler shadow warning about internal variables of
+  foreach() inside foreach().
+****************************************************************************/
+void hud_battle_log::te_inner()
+{
+  hud_unit_combat *hupdate;
+
+  foreach (hupdate, lhuc) {
+    hupdate->set_fading(1.0);
+  }
+}
+
+/************************************************************************//**
   Timer event. Starts/stops fading
 ****************************************************************************/
 void hud_battle_log::timerEvent(QTimerEvent *event)
 {
   hud_unit_combat *hudc;
-  hud_unit_combat *hupdate;
 
   if (m_timer.elapsed() > 4000 && m_timer.elapsed() < 5000) {
     foreach (hudc, lhuc) {
       if (hudc->get_focus()) {
         m_timer.restart();
-        foreach (hupdate, lhuc) {
-          hupdate->set_fading(1.0);
-        }
+        te_inner();
         return;
       }
       hudc->set_fading((5000.0 - m_timer.elapsed()) / 1000);

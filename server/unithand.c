@@ -32,6 +32,7 @@
 #include "city.h"
 #include "combat.h"
 #include "events.h"
+#include "featured_text.h"
 #include "game.h"
 #include "log.h"
 #include "map.h"
@@ -357,8 +358,7 @@ static bool do_capture_units(struct player *pplayer,
                   victim_link, capturer_nation);
 
     /* May cause an incident */
-    action_consequence_success(paction, pplayer,
-                               unit_owner(to_capture),
+    action_consequence_success(paction, pplayer, uplayer,
                                pdesttile, victim_link);
 
     if (NULL != pcity) {
@@ -461,6 +461,38 @@ static bool do_expel_unit(struct player *pplayer,
 
   /* Mission accomplished. */
   return TRUE;
+}
+
+/**********************************************************************//**
+  Claim all ownable extras at tgt_tile.
+
+  Returns TRUE iff action could be done, FALSE if it couldn't. Even if
+  this returns TRUE, unit may have died during the action.
+**************************************************************************/
+static bool do_conquer_extras(struct player *act_player,
+                              struct unit *act_unit,
+                              struct tile *tgt_tile,
+                              const struct action *paction)
+{
+  bool success;
+  int move_cost = map_move_cost_unit(&(wld.map), act_unit, tgt_tile);
+  struct player *tgt_player = extra_owner(tgt_tile);
+
+  /* Sanity check */
+  fc_assert_ret_val(act_unit, FALSE);
+  fc_assert_ret_val(tgt_tile, FALSE);
+
+  unit_move(act_unit, tgt_tile, move_cost, NULL, FALSE, FALSE, TRUE);
+
+  success = extra_owner(tgt_tile) == act_player;
+
+  if (success) {
+    /* May cause an incident */
+    action_consequence_success(paction, act_player, tgt_player, tgt_tile,
+                               tile_link(tgt_tile));
+  }
+
+  return success;
 }
 
 /**********************************************************************//**
@@ -622,7 +654,7 @@ static bool do_disembark(struct player *act_player,
   fc_assert_ret_val(tgt_tile, FALSE);
   fc_assert_ret_val(paction, FALSE);
 
-  unit_move(act_unit, tgt_tile, move_cost, NULL, FALSE, FALSE);
+  unit_move(act_unit, tgt_tile, move_cost, NULL, FALSE, FALSE, FALSE);
 
   return TRUE;
 }
@@ -657,7 +689,7 @@ static bool do_unit_embark(struct player *act_player,
   /* Do it. */
   tgt_tile = unit_tile(tgt_unit);
   move_cost = map_move_cost_unit(&(wld.map), act_unit, tgt_tile);
-  unit_move(act_unit, tgt_tile, move_cost, tgt_unit, FALSE, FALSE);
+  unit_move(act_unit, tgt_tile, move_cost, tgt_unit, FALSE, FALSE, FALSE);
 
   return TRUE;
 }
@@ -751,6 +783,7 @@ static struct player *need_war_player_hlp(const struct unit *actor,
       } unit_list_iterate_end;
     }
     break;
+  case ACTRES_CONQUER_EXTRAS:
   case ACTRES_ESTABLISH_EMBASSY:
   case ACTRES_SPY_INVESTIGATE_CITY:
   case ACTRES_SPY_POISON:
@@ -793,7 +826,6 @@ static struct player *need_war_player_hlp(const struct unit *actor,
   case ACTRES_CLEAN_POLLUTION:
   case ACTRES_CLEAN_FALLOUT:
   case ACTRES_FORTIFY:
-  case ACTRES_SENTRY:
   case ACTRES_CONVERT:
   case ACTRES_ROAD:
   case ACTRES_BASE:
@@ -846,6 +878,13 @@ static struct player *need_war_player_hlp(const struct unit *actor,
       return NULL;
     }
     target_player = tile_owner(target_tile);
+    break;
+  case ATK_EXTRAS:
+    if (target_tile == NULL) {
+      /* No target tile. */
+      return NULL;
+    }
+    target_player = target_tile->owner;
     break;
   case ATK_SELF:
     /* Can't declare war on itself. */
@@ -1052,6 +1091,7 @@ static struct ane_expl *expl_act_not_enabl(struct unit *punit,
       break;
     case ATK_UNITS:
     case ATK_TILE:
+    case ATK_EXTRAS:
       if (target_tile == NULL) {
         explnat->kind = ANEK_MISSING_TARGET;
       }
@@ -1093,6 +1133,9 @@ static struct ane_expl *expl_act_not_enabl(struct unit *punit,
       break;
     case ATK_TILE:
       tgt_player = tile_owner(target_tile);
+      break;
+    case ATK_EXTRAS:
+      tgt_player = target_tile->extras_owner;
       break;
     case ATK_UNITS:
       /* A unit stack may contain units with multiple owners. Pick the
@@ -1151,6 +1194,7 @@ static struct ane_expl *expl_act_not_enabl(struct unit *punit,
       }
       break;
     case ACTRES_TRANSPORT_DISEMBARK:
+    case ACTRES_CONQUER_EXTRAS:
       if (target_tile) {
         action_custom = unit_move_to_tile_test(&(wld.map), punit,
                                                punit->activity,
@@ -1403,6 +1447,7 @@ static struct ane_expl *expl_act_not_enabl(struct unit *punit,
              && !map_is_known(target_tile, unit_owner(punit))) {
     explnat->kind = ANEK_TGT_TILE_UNKNOWN;
   } else if ((action_has_result_safe(paction, ACTRES_CONQUER_CITY)
+              || action_id_has_result_safe(act_id, ACTRES_CONQUER_EXTRAS)
               || action_has_result_safe(paction,
                                         ACTRES_TRANSPORT_EMBARK)
               || action_has_result_safe(paction,
@@ -1439,7 +1484,7 @@ static struct ane_expl *expl_act_not_enabl(struct unit *punit,
                                               can_upgrade_unittype(
                                                   act_player, act_utype));
   } else if (paction
-             && (blocker = action_is_blocked_by(act_id, punit,
+             && (blocker = action_is_blocked_by(paction, punit,
                                                 target_tile, target_city,
                                                 target_unit))) {
     explnat->kind = ANEK_ACTION_BLOCKS;
@@ -1917,6 +1962,17 @@ void handle_unit_get_actions(struct connection *pc,
         probabilities[act] = ACTPROB_IMPOSSIBLE;
       }
       break;
+    case ATK_EXTRAS:
+      if (target_tile) {
+        /* Calculate the probabilities. */
+        probabilities[act] = action_prob_vs_extras(actor_unit, act,
+                                                   target_tile,
+                                                   target_extra);
+      } else {
+        /* No target to act against. */
+        probabilities[act] = ACTPROB_IMPOSSIBLE;
+      }
+      break;
     case ATK_SELF:
       if (actor_target_distance == 0) {
         /* Calculate the probabilities. */
@@ -1961,6 +2017,7 @@ void handle_unit_get_actions(struct connection *pc,
         target_unit_id = target_unit->id;
         break;
       case ATK_TILE:
+      case ATK_EXTRAS:
         /* The target tile isn't selected here so it hasn't changed. */
         fc_assert(target_tile != NULL);
 
@@ -3005,6 +3062,30 @@ bool unit_perform_action(struct player *pplayer,
                    TRUE, requester);                                      \
   }
 
+#define ACTION_STARTED_UNIT_EXTRAS(action, actor, target, action_performer)\
+  if (target_tile                                                         \
+      && is_action_enabled_unit_on_extras(action_type,                    \
+                                          actor_unit, target_tile,        \
+                                          target_extra)) {                \
+    bool success;                                                         \
+    script_server_signal_emit("action_started_unit_extras",               \
+                              action_by_number(action), actor, target);   \
+    if (!actor || !unit_is_alive(actor_id)) {                             \
+      /* Actor unit was destroyed during pre action Lua. */               \
+      return FALSE;                                                       \
+    }                                                                     \
+    success = action_performer;                                           \
+    if (success) {                                                        \
+      action_success_actor_price(paction, actor_id, actor);               \
+    }                                                                     \
+    return success;                                                       \
+  } else {                                                                \
+    illegal_action(pplayer, actor_unit, action_type,                      \
+                   target_tile ? target_tile->extras_owner : NULL,        \
+                   target_tile, NULL, NULL,                               \
+                   TRUE, requester);                                      \
+  }
+
   switch (paction->result) {
   case ACTRES_SPY_BRIBE_UNIT:
     ACTION_STARTED_UNIT_UNIT(action_type, actor_unit, punit,
@@ -3052,10 +3133,6 @@ bool unit_perform_action(struct player *pplayer,
     ACTION_STARTED_UNIT_SELF(action_type, actor_unit, TRUE);
     break;
   case ACTRES_FORTIFY:
-    ACTION_STARTED_UNIT_SELF(action_type, actor_unit,
-                             do_action_activity(actor_unit, paction));
-    break;
-  case ACTRES_SENTRY:
     ACTION_STARTED_UNIT_SELF(action_type, actor_unit,
                              do_action_activity(actor_unit, paction));
     break;
@@ -3204,6 +3281,11 @@ bool unit_perform_action(struct player *pplayer,
                                                             pcity,
                                                             paction));
     break;
+  case ACTRES_CONQUER_EXTRAS:
+    ACTION_STARTED_UNIT_EXTRAS(action_type, actor_unit, target_tile,
+                               do_conquer_extras(pplayer, actor_unit,
+                                                 target_tile, paction));
+    break;
   case ACTRES_AIRLIFT:
     ACTION_STARTED_UNIT_CITY(action_type, actor_unit, pcity,
                              do_airline(actor_unit, pcity, paction));
@@ -3327,6 +3409,10 @@ bool unit_perform_action(struct player *pplayer,
       break;
     case ATK_TILE:
       ACTION_STARTED_UNIT_TILE(action_type, actor_unit, target_tile, TRUE);
+      break;
+    case ATK_EXTRAS:
+      ACTION_STARTED_UNIT_EXTRAS(action_type, actor_unit, target_tile,
+                                 TRUE);
       break;
     case ATK_SELF:
       ACTION_STARTED_UNIT_SELF(action_type, actor_unit, TRUE);
@@ -4075,6 +4161,9 @@ static bool do_attack(struct unit *punit, struct tile *def_tile,
                       const struct action *paction)
 {
   char loser_link[MAX_LEN_LINK], winner_link[MAX_LEN_LINK];
+  char attacker_vet[MAX_LEN_LINK], defender_vet[MAX_LEN_LINK];
+  char attacker_fp[MAX_LEN_LINK], defender_fp[MAX_LEN_LINK];
+  char attacker_tired[MAX_LEN_LINK];
   struct unit *ploser, *pwinner;
   struct city *pcity;
   int moves_used, def_moves_used; 
@@ -4083,7 +4172,9 @@ static bool do_attack(struct unit *punit, struct tile *def_tile,
   struct player *pplayer = unit_owner(punit);
   bool adj;
   enum direction8 facing;
-  int att_hp, def_hp;
+  int att_hp, def_hp, att_fp, def_fp;
+  int att_hp_start, def_hp_start;
+  int def_power, att_power;
   struct unit *pdefender;
 
   if (!(pdefender = get_defender(punit, def_tile))) {
@@ -4091,6 +4182,12 @@ static bool do_attack(struct unit *punit, struct tile *def_tile,
     return FALSE;
   }
   
+  att_hp_start = punit->hp;
+  def_hp_start = pdefender->hp;
+  def_power = get_total_defense_power(punit, pdefender);
+  att_power = get_total_attack_power(punit, pdefender);
+  get_modified_firepower(punit, pdefender, &att_fp, &def_fp);
+
   log_debug("Start attack: %s %s against %s %s.",
             nation_rule_name(nation_of_player(pplayer)),
             unit_rule_name(punit), 
@@ -4122,6 +4219,18 @@ static bool do_attack(struct unit *punit, struct tile *def_tile,
 
   old_unit_vet = punit->veteran;
   old_defender_vet = pdefender->veteran;
+
+  /* N.B.: unit_veteran_level_string always returns the same pointer. */
+  sz_strlcpy(attacker_vet, unit_veteran_level_string(punit));
+  sz_strlcpy(defender_vet, unit_veteran_level_string(pdefender));
+
+  /* N.B.: unit_firepower_if_not_one always returns the same pointer. */
+  sz_strlcpy(attacker_fp, unit_firepower_if_not_one(att_fp));
+  sz_strlcpy(defender_fp, unit_firepower_if_not_one(def_fp));
+
+  /* Record tired attack string before attack */
+  sz_strlcpy(attacker_tired, unit_tired_attack_string(punit));
+
   unit_versus_unit(punit, pdefender, &att_hp, &def_hp);
 
   if ((att_hp <= 0 || utype_is_consumed_by_action(paction, punit->utype))
@@ -4202,21 +4311,54 @@ static bool do_attack(struct unit *punit, struct tile *def_tile,
 
     notify_player(unit_owner(pwinner), unit_tile(pwinner),
                   E_UNIT_WIN_DEF, ftc_server,
-                  /* TRANS: "Your Cannon ... the Polish Destroyer." */
-                  _("Your %s survived the pathetic attack from the %s %s."),
+                  /* TRANS: "Your green Legion [id:100 ...D:4.0 lost 1 HP,
+                   * 9 HP remaining] survived the pathetic ...attack from the
+                   * green Greek Warriors [id:90 ...A:1.0 HP:10]. */
+                  _("Your %s %s [id:%d %sD:%.1f lost %d HP, %d HP remaining]"
+                    " survived the pathetic %sattack from the %s %s %s "
+                    "[id:%d %sA:%.1f HP:%d]."),
+                  defender_vet,
                   winner_link,
+                  pdefender->id,
+                  defender_fp,
+                  (float)def_power/POWER_FACTOR,
+                  def_hp_start - pdefender->hp,
+                  pdefender->hp,
+                  attacker_tired,
                   nation_adjective_for_player(unit_owner(ploser)),
-                  loser_link);
+                  attacker_vet,
+                  loser_link,
+                  punit->id,
+                  attacker_fp,
+                  (float)att_power/POWER_FACTOR,
+                  att_hp_start);
+
     if (vet) {
       notify_unit_experience(pwinner);
     }
     notify_player(unit_owner(ploser), def_tile,
                   E_UNIT_LOST_ATT, ftc_server,
-                  /* TRANS: "... Cannon ... the Polish Destroyer." */
-                  _("Your attacking %s failed against the %s %s!"),
-                  loser_link,
-                  nation_adjective_for_player(unit_owner(pwinner)),
-                  winner_link);
+                  /* TRANS: "Your attacking green Cannon [id:100 ...A:8.0
+                   * failed against the Greek Polish Destroyer [id:200 lost
+                   * 27 HP, 3 HP remaining%s]!";
+                   * last %s is either "and ..." or empty string */
+                 _("Your attacking %s %s [id:%d %sA:%.1f HP:%d] failed "
+                   "against the %s %s %s [id:%d lost %d HP, %d HP "
+                   "remaining%s]!"),
+                 attacker_vet,
+                 loser_link,
+                 punit->id,
+                 attacker_fp,
+                 (float)att_power/POWER_FACTOR,
+                 att_hp_start,
+                 nation_adjective_for_player(unit_owner(pdefender)),
+                 defender_vet,
+                 winner_link,
+                 pdefender->id,
+                 def_hp_start - pdefender->hp,
+                 pdefender->hp,
+                 vet ? unit_achieved_rank_string(pdefender) : "");
+
     wipe_unit(ploser, ULR_KILLED, unit_owner(pwinner));
   } else {
     /* The defender lost, the attacker punit lives! */
@@ -4226,6 +4368,53 @@ static bool do_attack(struct unit *punit, struct tile *def_tile,
               unit_rule_name(punit),
               nation_rule_name(nation_of_unit(pdefender)),
               unit_rule_name(pdefender));
+
+    notify_player(unit_owner(pdefender), unit_tile(pdefender),
+                  E_UNIT_LOST_DEF, ftc_server,
+                  /* TRANS: "Your green Warriors [id:100 ...D:1.0 HP:10]
+                   * lost to an attack by the Greek green Legion
+                   * [id:200 ...A:4.0 lost 1 HP, has 9 HP remaining%s]."
+                   * last %s is either "and ..." or empty string */
+                  _("Your %s %s [id:%d %sD:%.1f HP:%d] lost to an attack by "
+                    "the %s %s %s [id:%d %sA:%.1f lost %d HP, has %d HP "
+                    "remaining%s]."),
+                  defender_vet,
+                  loser_link,
+                  pdefender->id,
+                  defender_fp,
+                  (float)def_power/POWER_FACTOR,
+                  def_hp_start,
+                  nation_adjective_for_player(unit_owner(punit)),
+                  attacker_vet,
+                  winner_link,
+                  punit->id,
+                  attacker_fp,
+                  (float)att_power/POWER_FACTOR,
+                  att_hp_start - pwinner->hp,
+                  pwinner->hp,
+                  vet ? unit_achieved_rank_string(punit) : "");
+
+    notify_player(unit_owner(punit), unit_tile(punit),
+                  E_UNIT_WIN_ATT, ftc_server,
+                  /* TRANS: "Your attacking green Legion [id:200 ...A:4.0
+                   * lost 1 HP, has 9 HP remaining] succeeded against the
+                   * Greek green Warriors [id:100 HP:10]." */
+                  _("Your attacking %s %s [id:%d %s%sA:%.1f lost %d HP, "
+                    "has %d remaining] succeeded against the %s %s %s "
+                    "[id:%d HP:%d]."),
+                  attacker_vet,
+                  winner_link,
+                  punit->id,
+                  attacker_fp,
+                  attacker_tired,
+                  (float)att_power/POWER_FACTOR,
+                  att_hp_start - pwinner->hp,
+                  pwinner->hp,
+                  nation_adjective_for_player(unit_owner(pdefender)),
+                  defender_vet,
+                  loser_link,
+                  pdefender->id,
+                  def_hp_start);
 
     punit->moved = TRUE;	/* We moved */
     kill_unit(pwinner, ploser,
@@ -4280,6 +4469,13 @@ static bool do_attack(struct unit *punit, struct tile *def_tile,
             && unit_perform_action(unit_owner(punit), punit->id,
                                    tile_index(def_tile), 0, "",
                                    ACTION_TRANSPORT_DISEMBARK2,
+                                   ACT_REQ_RULES))
+        || (tile_has_claimable_base(def_tile, unit_type_get(punit))
+            && is_action_enabled_unit_on_extras(ACTION_CONQUER_EXTRAS,
+                                                punit, def_tile, NULL)
+            && unit_perform_action(unit_owner(punit), punit->id,
+                                   tile_index(def_tile), 0, "",
+                                   ACTION_CONQUER_EXTRAS,
                                    ACT_REQ_RULES))
         || (unit_move_handling(punit, def_tile, FALSE, TRUE))) {
       int mcost = MAX(0, full_moves - punit->moves_left - SINGLE_MOVE);
@@ -4493,7 +4689,7 @@ static bool do_unit_conquer_city(struct player *act_player,
   /* Sanity check */
   fc_assert_ret_val(tgt_tile, FALSE);
 
-  unit_move(act_unit, tgt_tile, move_cost, NULL, FALSE, TRUE);
+  unit_move(act_unit, tgt_tile, move_cost, NULL, FALSE, TRUE, TRUE);
 
   /* The city may have been destroyed during the conquest. */
   success = (!city_exist(tgt_city_id)
@@ -4707,6 +4903,22 @@ bool unit_move_handling(struct unit *punit, struct tile *pdesttile,
     } unit_list_iterate_end;
   }
 
+  {
+    const struct action *blocking_action;
+
+    /* Can't move if an action that block moves is legal */
+    if ((blocking_action = action_is_blocked_by(
+           NULL, punit, pdesttile, tile_city(pdesttile), NULL))) {
+      notify_player(pplayer, unit_tile(punit), E_BAD_COMMAND, ftc_server,
+                    /* TRANS: Freight ... Recycle Unit ... Help Wonder ... */
+                    _("Your %s can't do %s when %s is legal."),
+                    unit_name_translation(punit),
+                    _("regular unit move"),
+                    action_name_translation(blocking_action));
+      return FALSE;
+    }
+  }
+
   if (can_unit_move_to_tile_with_notify(punit, pdesttile, igzoc,
                                         NULL, FALSE)
       /* Don't override "Transport Embark" */
@@ -4719,6 +4931,8 @@ bool unit_move_handling(struct unit *punit, struct tile *pdesttile,
               /* Don't override "Transport Embark" */
               NULL, FALSE,
               /* Don't override "Conquer City" */
+              FALSE,
+              /* Don't override "Conquer Extras" */
               FALSE);
 
     return TRUE;

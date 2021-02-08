@@ -1203,7 +1203,7 @@ bool teleport_unit_to_city(struct unit *punit, struct city *pcity,
     if (move_cost == -1) {
       move_cost = punit->moves_left;
     }
-    unit_move(punit, dst_tile, move_cost, NULL, FALSE, FALSE);
+    unit_move(punit, dst_tile, move_cost, NULL, FALSE, FALSE, FALSE);
 
     return TRUE;
   }
@@ -1266,7 +1266,7 @@ void bounce_unit(struct unit *punit, bool verbose)
      * because the transport is Unreachable and the unit doesn't have it in
      * its embarks field or because "Transport Embark" isn't enabled? Kept
      * like it was to preserve the old rules for now. -- Sveinung */
-    unit_move(punit, ptile, 0, NULL, TRUE, FALSE);
+    unit_move(punit, ptile, 0, NULL, TRUE, FALSE, FALSE);
     return;
   }
 
@@ -2271,22 +2271,9 @@ void kill_unit(struct unit *pkiller, struct unit *punit, bool vet)
   }
 
   if (!is_stack_vulnerable(unit_tile(punit)) || unitcount == 1) {
-    notify_player(pvictor, unit_tile(pkiller), E_UNIT_WIN_ATT, ftc_server,
-                  /* TRANS: "... Cannon ... the Polish Destroyer." */
-                  _("Your attacking %s succeeded against the %s %s!"),
-                  pkiller_link,
-                  nation_adjective_for_player(pvictim),
-                  punit_link);
     if (vet) {
       notify_unit_experience(pkiller);
     }
-    notify_player(pvictim, unit_tile(punit), E_UNIT_LOST_DEF, ftc_server,
-                  /* TRANS: "Cannon ... the Polish Destroyer." */
-                  _("%s lost to an attack by the %s %s."),
-                  punit_link,
-                  nation_adjective_for_player(pvictor),
-                  pkiller_link);
-
     wipe_unit(punit, ULR_KILLED, pvictor);
   } else { /* unitcount > 1 */
     int i;
@@ -2350,7 +2337,7 @@ void kill_unit(struct unit *pkiller, struct unit *punit, bool vet)
             /* FIXME: Shouldn't unit_move_handling() be used here? This is
              * the unit escaping by moving itself. It should therefore
              * respect movement rules. */
-            unit_move(vunit, dsttile, move_cost, NULL, FALSE, FALSE);
+            unit_move(vunit, dsttile, move_cost, NULL, FALSE, FALSE, FALSE);
             num_escaped[player_index(vplayer)]++;
             escaped = TRUE;
             unitcount--;
@@ -2368,17 +2355,20 @@ void kill_unit(struct unit *pkiller, struct unit *punit, bool vet)
       }
     } unit_list_iterate_end;
 
-    /* Inform the destroyer: lots of different cases here! */
-    notify_player(pvictor, unit_tile(pkiller), E_UNIT_WIN_ATT, ftc_server,
-                  /* TRANS: "... Cannon ... the Polish Destroyer ...." */
-                  PL_("Your attacking %s succeeded against the %s %s "
-                      "(and %d other unit)!",
-                      "Your attacking %s succeeded against the %s %s "
-                      "(and %d other units)!", unitcount - 1),
-                  pkiller_link,
-                  nation_adjective_for_player(pvictim),
-                  punit_link,
-                  unitcount - 1);
+    /* Inform the destroyer again if more than one unit was killed */
+    if (unitcount > 1) {
+      notify_player(pvictor, unit_tile(pkiller), E_UNIT_WIN_ATT, ftc_server,
+                    /* TRANS: "... Cannon ... the Polish Destroyer ...." */
+                    PL_("Your attacking %s succeeded against the %s %s "
+                        "(and %d other unit)!",
+                        "Your attacking %s succeeded against the %s %s "
+                        "(and %d other units)!", unitcount - 1),
+                    pkiller_link,
+                    nation_adjective_for_player(pvictim),
+                    punit_link,
+                    unitcount - 1);
+    }
+
     if (vet) {
       notify_unit_experience(pkiller);
     }
@@ -2791,7 +2781,7 @@ bool do_airline(struct unit *punit, struct city *pdest_city,
 
   unit_move(punit, pdest_city->tile, punit->moves_left, NULL,
             /* Can only airlift to allied and domestic cities */
-            FALSE, FALSE);
+            FALSE, FALSE, FALSE);
 
   /* Update airlift fields. */
   if (!(game.info.airlifting_style & AIRLIFTING_UNLIMITED_SRC)) {
@@ -2932,7 +2922,10 @@ bool do_paradrop(struct unit *punit, struct tile *ptile,
                  && uclass_has_flag(unit_class_get(punit),
                                     UCF_CAN_OCCUPY_CITY)
                  && !unit_has_type_flag(punit, UTYF_CIVILIAN)
-                 && is_non_allied_city_tile(ptile, pplayer)))) {
+                 && is_non_allied_city_tile(ptile, pplayer)),
+                (extra_owner(ptile) == NULL
+                 || pplayers_at_war(extra_owner(ptile), unit_owner(punit)))
+                && tile_has_claimable_base(ptile, unit_type_get(punit)))) {
     /* Ensure we finished on valid state. */
     fc_assert(can_unit_exist_at_tile(&(wld.map), punit, unit_tile(punit))
               || unit_transported(punit));
@@ -3624,7 +3617,7 @@ static void unit_move_data_unref(struct unit_move_data *pdata)
 **************************************************************************/
 bool unit_move(struct unit *punit, struct tile *pdesttile, int move_cost,
                struct unit *embark_to, bool find_embark_target,
-               bool conquer_city_allowed)
+               bool conquer_city_allowed, bool conquer_extras_allowed)
 {
   struct player *pplayer;
   struct tile *psrctile;
@@ -3639,7 +3632,6 @@ bool unit_move(struct unit *punit, struct tile *pdesttile, int move_cost,
   bool unit_lives;
   bool adj;
   enum direction8 facing;
-  struct player *bowner;
 
   /* Some checks. */
   fc_assert_ret_val(punit != NULL, FALSE);
@@ -3706,8 +3698,7 @@ bool unit_move(struct unit *punit, struct tile *pdesttile, int move_cost,
   }
 
   /* Claim ownership of fortress? */
-  bowner = extra_owner(pdesttile);
-  if ((bowner == NULL || pplayers_at_war(bowner, pplayer))
+  if (conquer_extras_allowed
       && tile_has_claimable_base(pdesttile, unit_type_get(punit))) {
     /* Yes. We claim *all* bases if there's *any* claimable base(s).
      * Even if original unit cannot claim other kind of bases, the
@@ -3895,31 +3886,7 @@ bool unit_move(struct unit *punit, struct tile *pdesttile, int move_cost,
             && !unit_has_orders(punit)
             && punit->ssa_controller == SSA_NONE
             && !can_unit_exist_at_tile(&(wld.map), punit, pdesttile)) {
-          struct action *paction = NULL;
-
-          /* Look for a sentry action the unit can perform */
-          action_by_activity_iterate(caction, act_id, ACTIVITY_SENTRY) {
-            if (action_get_actor_kind(caction) != AAK_UNIT) {
-              /* Not relevant. */
-              continue;
-            }
-
-            fc_assert_action(action_get_target_kind(caction) == ATK_SELF,
-                             continue);
-
-            if (is_action_enabled_unit_on_self(caction->id, punit)) {
-              /* Found one. */
-              paction = caction;
-              break;
-            }
-          } action_by_activity_iterate_end;
-
-          if (paction != NULL) {
-            /* A sentry action was found. */
-            unit_perform_action(pplayer, punit->id,
-                                IDENTITY_NUMBER_ZERO, NO_TARGET, NULL,
-                                paction->id, ACT_REQ_RULES);
-          }
+          set_unit_activity(punit, ACTIVITY_SENTRY);
         }
 
         send_unit_info(NULL, punit);
@@ -4428,6 +4395,11 @@ bool execute_orders(struct unit *punit, const bool fresh)
                                    dst_tile, pextra);
         tgt_id = dst_tile->index;
         break;
+      case ATK_EXTRAS:
+        prob = action_prob_vs_extras(punit, order.action,
+                                     dst_tile, pextra);
+        tgt_id = dst_tile->index;
+        break;
       case ATK_CITY:
         prob = action_prob_vs_city(punit, order.action,
                                    tgt_city);
@@ -4690,8 +4662,15 @@ bool unit_order_list_is_sane(int length, const struct unit_order *orders)
       break;
     case ORDER_ACTIVITY:
       switch (orders[i].activity) {
-      /* Replaced by action orders */
       case ACTIVITY_SENTRY:
+        if (i != length - 1) {
+          /* Only allowed as the last order. */
+          log_error("activity %d is not allowed at index %d.", orders[i].activity,
+                    i);
+          return FALSE;
+        }
+        break;
+      /* Replaced by action orders */
       case ACTIVITY_BASE:
       case ACTIVITY_GEN_ROAD:
       case ACTIVITY_FALLOUT:
@@ -4818,7 +4797,6 @@ bool unit_order_list_is_sane(int length, const struct unit_order *orders)
             || !(utype_is_unmoved_by_action(paction, NULL)
                  || utype_is_moved_to_tgt_by_action(paction, NULL))
             /* or if the unit will end up standing still, */
-            || action_has_result(paction, ACTRES_SENTRY)
             || action_has_result(paction, ACTRES_FORTIFY)) {
           /* than having this action in the middle of a unit's orders is
            * probably wrong. */

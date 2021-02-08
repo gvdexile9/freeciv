@@ -157,14 +157,14 @@ void utf8_str_size(utf8_str *pstr, SDL_Rect *fill)
 /**********************************************************************//**
   Create utf8_str struct with ptsize font.
   Font will be loaded or aliased with existing font of that size.
-  pInTextString must be allocated in memory (MALLOC/fc_calloc)
+  in_text must be allocated in memory (malloc/fc_calloc)
 **************************************************************************/
 utf8_str *create_utf8_str(char *in_text, size_t n_alloc, Uint16 ptsize)
 {
   utf8_str *str = fc_calloc(1, sizeof(utf8_str));
 
   if (!ptsize) {
-    str->ptsize = theme_default_font_size(theme);
+    str->ptsize = theme_default_font_size(active_theme);
   } else {
     str->ptsize = ptsize;
   }
@@ -181,7 +181,7 @@ utf8_str *create_utf8_str(char *in_text, size_t n_alloc, Uint16 ptsize)
   str->fgcol = *get_theme_color(COLOR_THEME_TEXT);
   str->render = 2;
 
-  /* pInTextString must be allocated in memory (MALLOC/fc_calloc) */
+  /* in_text must be allocated in memory (malloc/fc_calloc) */
   str->text = in_text;
   str->n_alloc = n_alloc;
 
@@ -538,7 +538,7 @@ static TTF_Font *load_font(Uint16 ptsize)
   }
 
   if (!font_with_full_path) {
-    const char *path = theme_font_filename(theme);
+    const char *path = theme_font_filename(active_theme);
 
     font_with_full_path = fc_strdup(path);
     fc_assert_ret_val(font_with_full_path != NULL, NULL);

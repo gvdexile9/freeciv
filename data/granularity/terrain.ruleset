@@ -12,8 +12,8 @@
 
 [datafile]
 description="Granularity tile_type data for Freeciv"
-options="+Freeciv-ruleset-Devel-2017.Jan.02"
-format_version=20
+options="+Freeciv-ruleset-Devel-2021.Feb.06"
+format_version=30
 
 [control]
 ; Names for custom terrain flags. There can be up to 10 of these.
@@ -688,7 +688,7 @@ rmact_gfx_alt  = "-"
 ;                           -1 to disable. If enabled, base cannot exist in
 ;                           city tile.
 ;                           Base (and border) ownership will change hands if
-;                           an enemy unit occupies the tile.
+;                           an enemy unit does "Conquer Extras" to the tile.
 ; vision_main_sq          = Base will have main layer vision to this radius.
 ;                           Vision initially provided to owner of unit that
 ;                           built base; base will not then change hands unless

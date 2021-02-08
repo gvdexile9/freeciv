@@ -390,10 +390,6 @@ struct requirement_vector *lookup_req_list(struct section_file *file,
     struct entry *pentry;
     struct requirement req;
 
-    if (compat->compat_mode) {
-      type = rscompat_req_type_name_3_1(type);
-    }
-
     if (!(pentry = secfile_entry_lookup(file, "%s.%s%d.name",
                                         sec, sub, j))) {
       ruleset_error(LOG_ERROR, "%s", secfile_error());
@@ -477,16 +473,6 @@ struct requirement_vector *lookup_req_list(struct section_file *file,
                     "'%s.%s%d'.", filename, sec, sub, j);
     }
 
-    if (compat->compat_mode) {
-      if (!fc_strcasecmp(type, universals_n_name(VUT_UTFLAG))) {
-        name = rscompat_utype_flag_name_3_1(compat, name);
-      }
-    }
-
-    if (compat->compat_mode) {
-      name = rscompat_req_name_3_1(type, name);
-    }
-
     req = req_from_str(type, range, survives, present, quiet, name);
     if (req.source.kind == universals_n_invalid()) {
       ruleset_error(LOG_ERROR, "\"%s\" [%s] has invalid or unknown req: "
@@ -530,8 +516,7 @@ static bool lookup_cbonus_list(struct rscompat_info *compat,
     struct combat_bonus *bonus = fc_malloc(sizeof(*bonus));
     const char *type;
 
-    bonus->flag = unit_type_flag_id_by_name(rscompat_utype_flag_name_3_1(compat, flag),
-                                            fc_strcasecmp);
+    bonus->flag = unit_type_flag_id_by_name(flag, fc_strcasecmp);
     if (!unit_type_flag_id_is_valid(bonus->flag)) {
       log_error("\"%s\": unknown flag name \"%s\" in '%s.%s'.",
                 filename, flag, sec, sub);
@@ -1112,43 +1097,41 @@ static bool load_game_names(struct section_file *file,
 
   section_list_destroy(sec);
 
-  if (compat->ver_game >= 10) {
-    if (ok) {
-      sec = secfile_sections_by_name_prefix(file, GOODS_SECTION_PREFIX);
+  if (ok) {
+    sec = secfile_sections_by_name_prefix(file, GOODS_SECTION_PREFIX);
 
-      nval = (NULL != sec ? section_list_size(sec) : 0);
-      if (nval > MAX_GOODS_TYPES) {
-        int num = nval; /* No "size_t" to printf */
+    nval = (NULL != sec ? section_list_size(sec) : 0);
+    if (nval > MAX_GOODS_TYPES) {
+      int num = nval; /* No "size_t" to printf */
 
-        ruleset_error(LOG_ERROR,
-                      "\"%s\": Too many goods types (%d, max %d)",
-                      filename, num, MAX_GOODS_TYPES);
-        section_list_destroy(sec);
-        ok = FALSE;
-      } else if (nval < 1) {
-        ruleset_error(LOG_ERROR, "\"%s\": At least one goods type needed",
-                      filename);
-        section_list_destroy(sec);
-        ok = FALSE;
-      } else {
-        game.control.num_goods_types = nval;
-      }
-
-      if (ok) {
-        goods_type_iterate(pgood) {
-          const char *sec_name
-              = section_name(section_list_get(sec, goods_index(pgood)));
-
-          if (!ruleset_load_names(&pgood->name, NULL, file, sec_name)) {
-            ruleset_error(LOG_ERROR, "\"%s\": Cannot load goods names",
-                          filename);
-            ok = FALSE;
-            break;
-          }
-        } goods_type_iterate_end;
-      }
+      ruleset_error(LOG_ERROR,
+                    "\"%s\": Too many goods types (%d, max %d)",
+                    filename, num, MAX_GOODS_TYPES);
       section_list_destroy(sec);
+      ok = FALSE;
+    } else if (nval < 1) {
+      ruleset_error(LOG_ERROR, "\"%s\": At least one goods type needed",
+                    filename);
+      section_list_destroy(sec);
+      ok = FALSE;
+    } else {
+      game.control.num_goods_types = nval;
     }
+
+    if (ok) {
+      goods_type_iterate(pgood) {
+        const char *sec_name
+            = section_name(section_list_get(sec, goods_index(pgood)));
+
+        if (!ruleset_load_names(&pgood->name, NULL, file, sec_name)) {
+          ruleset_error(LOG_ERROR, "\"%s\": Cannot load goods names",
+                        filename);
+          ok = FALSE;
+          break;
+        }
+      } goods_type_iterate_end;
+    }
+    section_list_destroy(sec);
   }
 
   return ok;
@@ -1506,8 +1489,7 @@ static bool load_unit_names(struct section_file *file,
     const char *helptxt = secfile_lookup_str_default(file, NULL, "control.flags%d.helptxt",
                                                      i);
 
-    if (unit_type_flag_id_by_name(rscompat_utype_flag_name_3_1(compat, flag),
-                                  fc_strcasecmp)
+    if (unit_type_flag_id_by_name(flag, fc_strcasecmp)
         != unit_type_flag_id_invalid()) {
       ruleset_error(LOG_ERROR, "\"%s\": Duplicate unit flag name '%s'",
                     filename, flag);
@@ -1837,8 +1819,7 @@ static bool load_ruleset_units(struct section_file *file,
         ival = unit_class_flag_id_by_name(sval, fc_strcasecmp);
         if (!unit_class_flag_id_is_valid(ival)) {
           ok = FALSE;
-          ival = unit_type_flag_id_by_name(rscompat_utype_flag_name_3_1(compat, sval),
-                                           fc_strcasecmp);
+          ival = unit_type_flag_id_by_name(sval, fc_strcasecmp);
           if (unit_type_flag_id_is_valid(ival)) {
             ruleset_error(LOG_ERROR,
                           "\"%s\" unit_class \"%s\": unit_type flag \"%s\"!",
@@ -2234,8 +2215,7 @@ static bool load_ruleset_units(struct section_file *file,
         if (compat->compat_mode && !fc_strcasecmp("Partial_Invis", sval)) {
           u->vlayer = V_INVIS;
         } else {
-          ival = unit_type_flag_id_by_name(rscompat_utype_flag_name_3_1(compat, sval),
-                                           fc_strcasecmp);
+          ival = unit_type_flag_id_by_name(sval, fc_strcasecmp);
           if (!unit_type_flag_id_is_valid(ival)) {
             ok = FALSE;
             ival = unit_class_flag_id_by_name(sval, fc_strcasecmp);
@@ -3533,7 +3513,6 @@ static bool load_ruleset_terrain(struct section_file *file,
         pextra->helptext = lookup_strvec(file, section, "helptext");
       }
 
-      rscompat_extra_adjust_3_1(compat, pextra);
     } extra_type_iterate_end;
   }
 
@@ -5749,10 +5728,6 @@ static bool load_ruleset_effects(struct section_file *file,
       break;
     }
 
-    if (compat->compat_mode && rscompat_old_effect_3_1(type, file, sec_name, compat)) {
-      continue;
-    }
-
     eff = effect_type_by_name(type, fc_strcasecmp);
     if (!effect_type_is_valid(eff)) {
       ruleset_error(LOG_ERROR, "\"%s\" [%s] lists unknown effect type \"%s\".",
@@ -5957,6 +5932,49 @@ static bool load_action_actor_consuming_always(struct section_file *file,
       = secfile_lookup_bool_default(
           file, RS_DEFAULT_ACTION_ACTOR_CONSUMING_ALWAYS, "actions.%s",
           action_actor_consuming_always_ruleset_var_name(act));
+  }
+
+  return TRUE;
+}
+
+/**********************************************************************//**
+  Load what actions can block the action
+**************************************************************************/
+static bool load_action_blocked_by_list(struct section_file *file,
+                                        const char *filename,
+                                        struct action *paction)
+{
+  if (action_blocked_by_ruleset_var_name(paction) != NULL) {
+    /* Action blocking can be loaded from the ruleset. */
+
+    char fullpath[1024];
+
+    fc_snprintf(fullpath, sizeof(fullpath), "actions.%s",
+                action_blocked_by_ruleset_var_name(paction));
+
+    if (secfile_entry_by_path(file, fullpath)) {
+      enum gen_action *blocking_actions;
+      size_t asize;
+      int j;
+
+      blocking_actions =
+          secfile_lookup_enum_vec(file, &asize, gen_action, "%s", fullpath);
+
+      if (!blocking_actions) {
+        /* Entity exists but couldn't read it. */
+        ruleset_error(LOG_ERROR,
+                      "\"%s\": %s: bad action list",
+                      filename, fullpath);
+
+        return FALSE;
+      }
+
+      for (j = 0; j < asize; j++) {
+        BV_SET(paction->blocked_by, blocking_actions[j]);
+      }
+
+      free(blocking_actions);
+    }
   }
 
   return TRUE;
@@ -6438,15 +6456,6 @@ static bool load_ruleset_game(struct section_file *file, bool act,
           protecor_flag = NULL;
         }
 
-        if (!rscompat_auto_attack_3_1(compat, auto_perf,
-                                      psize, protecor_flag)) {
-          /* Upgrade failed */
-          ruleset_error(LOG_ERROR,
-                        "\"%s\": %s: failed to upgrade.",
-                        filename, "auto_attack");
-          ok = FALSE;
-        }
-
         if (psize) {
           FC_FREE(protecor_flag);
         }
@@ -6455,127 +6464,36 @@ static bool load_ruleset_game(struct section_file *file, bool act,
 
     /* section: actions */
     if (ok) {
-      int force_capture_units, force_bombard, force_explode_nuclear;
+      action_iterate(act_id) {
+        struct action *paction = action_by_number(act_id);
+        if (!load_action_blocked_by_list(file, filename, paction)) {
+          ok = FALSE;
+        }
+      } action_iterate_end;
 
-      if (secfile_lookup_bool_default(file, RS_DEFAULT_FORCE_TRADE_ROUTE,
-                                      "actions.force_trade_route")) {
-        /* Forbid entering the marketplace when a trade route can be
-         * established. */
-        BV_SET(action_by_number(ACTION_MARKETPLACE)->blocked_by,
-               ACTION_TRADE_ROUTE);
-      }
+      if (secfile_entry_by_path(file, "actions.move_is_blocked_by")) {
+        enum gen_action *blocking_actions;
+        size_t asize;
+        int j;
 
-      /* Forbid bombarding, exploading nuclear or attacking when it is
-       * legal to capture units. */
-      force_capture_units
-        = secfile_lookup_bool_default(file, RS_DEFAULT_FORCE_CAPTURE_UNITS,
-                                      "actions.force_capture_units");
+        blocking_actions =
+            secfile_lookup_enum_vec(file, &asize, gen_action,
+                                    "actions.move_is_blocked_by");
 
-      if (force_capture_units) {
-        BV_SET(action_by_number(ACTION_BOMBARD)->blocked_by,
-               ACTION_CAPTURE_UNITS);
-        BV_SET(action_by_number(ACTION_BOMBARD2)->blocked_by,
-               ACTION_CAPTURE_UNITS);
-        BV_SET(action_by_number(ACTION_BOMBARD3)->blocked_by,
-               ACTION_CAPTURE_UNITS);
-        BV_SET(action_by_number(ACTION_NUKE)->blocked_by,
-               ACTION_CAPTURE_UNITS);
-        BV_SET(action_by_number(ACTION_NUKE_CITY)->blocked_by,
-               ACTION_CAPTURE_UNITS);
-        BV_SET(action_by_number(ACTION_NUKE_UNITS)->blocked_by,
-               ACTION_CAPTURE_UNITS);
-        BV_SET(action_by_number(ACTION_SUICIDE_ATTACK)->blocked_by,
-               ACTION_CAPTURE_UNITS);
-        BV_SET(action_by_number(ACTION_ATTACK)->blocked_by,
-               ACTION_CAPTURE_UNITS);
-        BV_SET(action_by_number(ACTION_CONQUER_CITY)->blocked_by,
-               ACTION_CAPTURE_UNITS);
-        BV_SET(action_by_number(ACTION_CONQUER_CITY2)->blocked_by,
-               ACTION_CAPTURE_UNITS);
-      }
+        if (!blocking_actions) {
+          /* Entity exists but couldn't read it. */
+          ruleset_error(LOG_ERROR,
+                        "\"%s\": actions.move_is_blocked_by: bad action list",
+                        filename);
 
-      /* Forbid exploding nuclear or attacking when it is legal to
-       * bombard. */
-      force_bombard
-        = secfile_lookup_bool_default(file, RS_DEFAULT_FORCE_BOMBARD,
-                                      "actions.force_bombard");
+          ok = FALSE;
+        }
 
-      if (force_bombard) {
-        BV_SET(action_by_number(ACTION_NUKE)->blocked_by,
-               ACTION_BOMBARD);
-        BV_SET(action_by_number(ACTION_NUKE_CITY)->blocked_by,
-               ACTION_BOMBARD);
-        BV_SET(action_by_number(ACTION_NUKE_UNITS)->blocked_by,
-               ACTION_BOMBARD);
-        BV_SET(action_by_number(ACTION_SUICIDE_ATTACK)->blocked_by,
-               ACTION_BOMBARD);
-        BV_SET(action_by_number(ACTION_ATTACK)->blocked_by,
-               ACTION_BOMBARD);
-        BV_SET(action_by_number(ACTION_CONQUER_CITY)->blocked_by,
-               ACTION_BOMBARD);
-        BV_SET(action_by_number(ACTION_CONQUER_CITY2)->blocked_by,
-               ACTION_BOMBARD);
-        BV_SET(action_by_number(ACTION_NUKE)->blocked_by,
-               ACTION_BOMBARD2);
-        BV_SET(action_by_number(ACTION_NUKE_CITY)->blocked_by,
-               ACTION_BOMBARD2);
-        BV_SET(action_by_number(ACTION_NUKE_UNITS)->blocked_by,
-               ACTION_BOMBARD2);
-        BV_SET(action_by_number(ACTION_SUICIDE_ATTACK)->blocked_by,
-               ACTION_BOMBARD2);
-        BV_SET(action_by_number(ACTION_ATTACK)->blocked_by,
-               ACTION_BOMBARD2);
-        BV_SET(action_by_number(ACTION_CONQUER_CITY)->blocked_by,
-               ACTION_BOMBARD2);
-        BV_SET(action_by_number(ACTION_CONQUER_CITY2)->blocked_by,
-               ACTION_BOMBARD2);
-        BV_SET(action_by_number(ACTION_NUKE)->blocked_by,
-               ACTION_BOMBARD3);
-        BV_SET(action_by_number(ACTION_NUKE_CITY)->blocked_by,
-               ACTION_BOMBARD3);
-        BV_SET(action_by_number(ACTION_NUKE_UNITS)->blocked_by,
-               ACTION_BOMBARD3);
-        BV_SET(action_by_number(ACTION_SUICIDE_ATTACK)->blocked_by,
-               ACTION_BOMBARD3);
-        BV_SET(action_by_number(ACTION_ATTACK)->blocked_by,
-               ACTION_BOMBARD3);
-        BV_SET(action_by_number(ACTION_CONQUER_CITY)->blocked_by,
-               ACTION_BOMBARD3);
-        BV_SET(action_by_number(ACTION_CONQUER_CITY2)->blocked_by,
-               ACTION_BOMBARD3);
-      }
+        for (j = 0; j < asize; j++) {
+          BV_SET(game.info.move_is_blocked_by, blocking_actions[j]);
+        }
 
-      /* Forbid attacking when it is legal to do explode nuclear. */
-      force_explode_nuclear
-        = secfile_lookup_bool_default(file,
-                                      RS_DEFAULT_FORCE_EXPLODE_NUCLEAR,
-                                      "actions.force_explode_nuclear");
-
-      if (force_explode_nuclear) {
-        BV_SET(action_by_number(ACTION_SUICIDE_ATTACK)->blocked_by,
-               ACTION_NUKE);
-        BV_SET(action_by_number(ACTION_ATTACK)->blocked_by,
-               ACTION_NUKE);
-        BV_SET(action_by_number(ACTION_CONQUER_CITY)->blocked_by,
-               ACTION_NUKE);
-        BV_SET(action_by_number(ACTION_CONQUER_CITY2)->blocked_by,
-               ACTION_NUKE);
-        BV_SET(action_by_number(ACTION_SUICIDE_ATTACK)->blocked_by,
-               ACTION_NUKE_CITY);
-        BV_SET(action_by_number(ACTION_ATTACK)->blocked_by,
-               ACTION_NUKE_CITY);
-        BV_SET(action_by_number(ACTION_CONQUER_CITY)->blocked_by,
-               ACTION_NUKE_CITY);
-        BV_SET(action_by_number(ACTION_CONQUER_CITY2)->blocked_by,
-               ACTION_NUKE_CITY);
-        BV_SET(action_by_number(ACTION_SUICIDE_ATTACK)->blocked_by,
-               ACTION_NUKE_UNITS);
-        BV_SET(action_by_number(ACTION_ATTACK)->blocked_by,
-               ACTION_NUKE_UNITS);
-        BV_SET(action_by_number(ACTION_CONQUER_CITY)->blocked_by,
-               ACTION_NUKE_UNITS);
-        BV_SET(action_by_number(ACTION_CONQUER_CITY2)->blocked_by,
-               ACTION_NUKE_UNITS);
+        free(blocking_actions);
       }
 
       /* If the "Poison City" action or the "Poison City Escape" action
@@ -6694,16 +6612,6 @@ static bool load_ruleset_game(struct section_file *file, bool act,
         } section_list_iterate_end;
         section_list_destroy(sec);
       }
-    }
-  }
-
-  if (compat->compat_mode) {
-    bool slow_invasions
-      = secfile_lookup_bool_default(file, TRUE,
-                                    "global_unit_options.slow_invasions");
-
-    if (!rscompat_old_slow_invasions_3_1(compat, slow_invasions)) {
-      ok = FALSE;
     }
   }
 

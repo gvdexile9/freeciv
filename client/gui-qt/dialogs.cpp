@@ -136,7 +136,6 @@ static void disembark1(QVariant data1, QVariant data2);
 static void disembark2(QVariant data1, QVariant data2);
 static void convert_unit(QVariant data1, QVariant data2);
 static void fortify(QVariant data1, QVariant data2);
-static void sentry(QVariant data1, QVariant data2);
 static void disband_unit(QVariant data1, QVariant data2);
 static void join_city(QVariant data1, QVariant data2);
 static void unit_home_city(QVariant data1, QVariant data2);
@@ -144,6 +143,7 @@ static void unit_upgrade(QVariant data1, QVariant data2);
 static void airlift(QVariant data1, QVariant data2);
 static void conquer_city(QVariant data1, QVariant data2);
 static void conquer_city2(QVariant data1, QVariant data2);
+static void conquer_extras(QVariant data1, QVariant data2);
 static void heal_unit(QVariant data1, QVariant data2);
 static void transport_board(QVariant data1, QVariant data2);
 static void transport_embark(QVariant data1, QVariant data2);
@@ -258,10 +258,12 @@ static const QHash<action_id, pfcn_void> af_map_init(void)
   action_function[ACTION_TRANSPORT_DISEMBARK1] = disembark1;
   action_function[ACTION_TRANSPORT_DISEMBARK2] = disembark2;
 
+  /* Unit acting against all tile extras. */
+  action_function[ACTION_CONQUER_EXTRAS] = conquer_extras;
+
   /* Unit acting with no target except itself. */
   action_function[ACTION_DISBAND_UNIT] = disband_unit;
   action_function[ACTION_FORTIFY] = fortify;
-  action_function[ACTION_SENTRY] = sentry;
   action_function[ACTION_CONVERT] = convert_unit;
 
   return action_function;
@@ -1236,10 +1238,10 @@ void races_toggles_set_sensitive(void)
 /***********************************************************************//**
   Popup a dialog asking if the player wants to start a revolution.
 ***************************************************************************/
-void popup_revolution_dialog(struct government *government)
+void popup_revolution_dialog(struct government *gov)
 {
   hud_message_box *ask;
-  const Government_type_id government_id = government_number(government);
+  const Government_type_id government_id = government_number(gov);
 
   if (0 > client.conn.playing->revolution_finishes) {
     ask = new hud_message_box(gui()->central_wdg);
@@ -1250,13 +1252,14 @@ void popup_revolution_dialog(struct government *government)
     ask->setAttribute(Qt::WA_DeleteOnClose);
     QObject::connect(ask, &hud_message_box::accepted, [=]() {
       struct government *government = government_by_number(government_id);
+
       if (government) {
         revolution_response(government);
       }
     });
     ask->show();
   } else {
-    revolution_response(government);
+    revolution_response(gov);
   }
 }
 
@@ -1341,6 +1344,7 @@ choice_dialog::choice_dialog(const QString title, const QString text,
   target_id[ATK_UNIT] = IDENTITY_NUMBER_ZERO;
   target_id[ATK_UNITS] = TILE_INDEX_NONE;
   target_id[ATK_TILE] = TILE_INDEX_NONE;
+  target_id[ATK_EXTRAS] = TILE_INDEX_NONE;
   sub_target_id[ASTK_BUILDING] = B_LAST;
   sub_target_id[ASTK_TECH] = A_UNSET;
   sub_target_id[ASTK_EXTRA] = EXTRA_NONE;
@@ -1805,6 +1809,20 @@ static void conquer_city2(QVariant data1, QVariant data2)
 }
 
 /***********************************************************************//**
+  Action "Conquer Extras" for choice dialog
+***************************************************************************/
+static void conquer_extras(QVariant data1, QVariant data2)
+{
+  int actor_id = data1.toInt();
+  int target_id = data2.toInt();
+
+  if (NULL != game_unit_by_number(actor_id)) {
+    request_do_action(ACTION_CONQUER_EXTRAS,
+                      actor_id, target_id, 0, "");
+  }
+}
+
+/***********************************************************************//**
   Delay selection of what action to take.
 ***************************************************************************/
 static void act_sel_wait(QVariant data1, QVariant data2)
@@ -1822,12 +1840,12 @@ static void keep_moving(QVariant data1, QVariant data2)
 /***********************************************************************//**
   Starts revolution with targeted government as target or anarchy otherwise
 ***************************************************************************/
-void revolution_response(struct government *government)
+void revolution_response(struct government *gov)
 {
-  if (!government) {
+  if (!gov) {
     start_revolution();
   } else {
-    set_government_choice(government);
+    set_government_choice(gov);
   }
 }
 
@@ -2026,6 +2044,12 @@ void popup_action_selection(struct unit *actor_unit,
     cd->target_id[ATK_TILE] = TILE_INDEX_NONE;
   }
 
+  if (target_tile) {
+    cd->target_id[ATK_EXTRAS] = tile_index(target_tile);
+  } else {
+    cd->target_id[ATK_EXTRAS] = TILE_INDEX_NONE;
+  }
+
   /* No target building or target tech supplied. (Feb 2020) */
   cd->sub_target_id[ASTK_BUILDING] = B_LAST;
   cd->sub_target_id[ASTK_TECH] = A_UNSET;
@@ -2097,6 +2121,23 @@ void popup_action_selection(struct unit *actor_unit,
   action_iterate(act) {
     if (action_id_get_actor_kind(act) == AAK_UNIT
         && action_id_get_target_kind(act) == ATK_TILE) {
+      action_entry(cd, act, act_probs,
+                   get_act_sel_action_custom_text(action_by_number(act),
+                                                  act_probs[act],
+                                                  actor_unit,
+                                                  target_city),
+                   qv1, qv2);
+    }
+  } action_iterate_end;
+
+  /* Unit acting against a tile's extras. */
+
+  /* Set the correct target for the following actions. */
+  qv2 = cd->target_id[ATK_EXTRAS];
+
+  action_iterate(act) {
+    if (action_id_get_actor_kind(act) == AAK_UNIT
+        && action_id_get_target_kind(act) == ATK_EXTRAS) {
       action_entry(cd, act, act_probs,
                    get_act_sel_action_custom_text(action_by_number(act),
                                                   act_probs[act],
@@ -2281,20 +2322,6 @@ static void fortify(QVariant data1, QVariant data2)
 
   if (NULL != game_unit_by_number(actor_id)) {
     request_do_action(ACTION_FORTIFY, actor_id,
-                      target_id, 0, "");
-  }
-}
-
-/***********************************************************************//**
-  Action "Sentry Unit" for choice dialog
-***************************************************************************/
-static void sentry(QVariant data1, QVariant data2)
-{
-  int actor_id = data1.toInt();
-  int target_id = data2.toInt();
-
-  if (NULL != game_unit_by_number(actor_id)) {
-    request_do_action(ACTION_SENTRY, actor_id,
                       target_id, 0, "");
   }
 }
@@ -3283,7 +3310,7 @@ void popup_incite_dialog(struct unit *actor, struct city *tcity, int cost,
   char buf2[1024];
   int diplomat_id = actor->id;
   int diplomat_target_id = tcity->id;
-  const int action_id = paction->id;
+  const int act_id = paction->id;
 
   /* Should be set before sending request to the server. */
   fc_assert(is_more_user_input_needed);
@@ -3313,7 +3340,7 @@ void popup_incite_dialog(struct unit *actor, struct city *tcity, int cost,
     ask->set_text_title(buf2, _("Incite a Revolt!"));
     ask->setAttribute(Qt::WA_DeleteOnClose);
     QObject::connect(ask, &hud_message_box::accepted, [=]() {
-      request_do_action(action_id, diplomat_id, diplomat_target_id, 0, "");
+      request_do_action(act_id, diplomat_id, diplomat_target_id, 0, "");
       diplomat_queue_handle_secondary(diplomat_id);
     });
     ask->show();
@@ -3346,7 +3373,7 @@ void popup_bribe_dialog(struct unit *actor, struct unit *tunit, int cost,
   char buf2[1024];
   int diplomat_id = actor->id;
   int diplomat_target_id = tunit->id;
-  const int action_id = paction->id;
+  const int act_id = paction->id;
 
   /* Should be set before sending request to the server. */
   fc_assert(is_more_user_input_needed);
@@ -3365,7 +3392,7 @@ void popup_bribe_dialog(struct unit *actor, struct unit *tunit, int cost,
     ask->setDefaultButton(QMessageBox::Cancel);
     ask->setAttribute(Qt::WA_DeleteOnClose);
     QObject::connect(ask, &hud_message_box::accepted, [=]() {
-      request_do_action(action_id, diplomat_id, diplomat_target_id, 0, "");
+      request_do_action(act_id, diplomat_id, diplomat_target_id, 0, "");
       diplomat_queue_handle_secondary(diplomat_id);
     });
     ask->show();
@@ -3697,6 +3724,7 @@ void popdown_all_game_dialogs(void)
   int i;
   QList <choice_dialog *> cd_list;
   QList <notify_dialog *> nd_list;
+  goto_dialog *gtd;
 
   QApplication::alert(gui()->central_wdg);
   cd_list = gui()->game_tab_widget->findChildren <choice_dialog *>();
@@ -3717,6 +3745,12 @@ void popdown_all_game_dialogs(void)
   popdown_city_report();
   popdown_endgame_report();
   gui()->popdown_unit_sel();
+
+  gtd = gui()->gtd;
+
+  if (gtd != nullptr) {
+    gtd->close_dlg();
+  }
 }
 
 /***********************************************************************//**
@@ -3893,6 +3927,7 @@ void action_selection_refresh(struct unit *actor_unit,
       }
       break;
     case ATK_TILE:
+    case ATK_EXTRAS:
     case ATK_UNITS:
       if (target_tile != NULL) {
         qv2 = tile_index(target_tile);

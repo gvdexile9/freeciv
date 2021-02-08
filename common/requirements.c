@@ -69,6 +69,32 @@ struct universal universal_by_rule_name(const char *kind,
 }
 
 /**********************************************************************//**
+  Returns TRUE iff the specified activity can appear in an "Activity"
+  requirement.
+**************************************************************************/
+static bool activity_is_valid_in_requirement(enum unit_activity act)
+{
+  return unit_activity_is_valid(act)
+      && is_real_activity(act)
+      && act != ACTIVITY_SENTRY
+      && act != ACTIVITY_GOTO
+      && act != ACTIVITY_EXPLORE;
+}
+
+/**********************************************************************//**
+  Returns TRUE iff the specified universal legally can appear in a
+  requirement.
+**************************************************************************/
+bool universal_is_legal_in_requirement(const struct universal *univ)
+{
+  if (univ->kind == VUT_ACTIVITY) {
+    return activity_is_valid_in_requirement(univ->value.activity);
+  }
+
+  return TRUE;
+}
+
+/**********************************************************************//**
   Parse requirement value strings into a universal
   structure.
 **************************************************************************/
@@ -209,7 +235,7 @@ void universal_value_from_str(struct universal *source, const char *value)
     break;
   case VUT_ACTIVITY:
     source->value.activity = unit_activity_by_name(value, fc_strcasecmp);
-    if (unit_activity_is_valid(source->value.activity)) {
+    if (activity_is_valid_in_requirement(source->value.activity)) {
       return;
     }
     break;
@@ -2587,6 +2613,38 @@ static enum fc_tristate is_unit_state(const struct unit *target_unit,
 }
 
 /**********************************************************************//**
+  Is the unit performing the specified activity?
+**************************************************************************/
+static enum fc_tristate unit_activity_in_range(const struct unit *punit,
+                                               enum req_range range,
+                                               enum unit_activity activity)
+{
+  fc_assert_ret_val_msg(range == REQ_RANGE_LOCAL, TRI_NO,
+                        "Unsupported range \"%s\"",
+                        req_range_name(range));
+
+  /* Could be asked with incomplete data.
+   * is_req_active() will handle it based on prob_type. */
+  if (punit == NULL) {
+    return TRI_MAYBE;
+  }
+
+  switch (punit->activity) {
+  case ACTIVITY_IDLE:
+  case ACTIVITY_SENTRY:
+  case ACTIVITY_GOTO:
+  case ACTIVITY_EXPLORE:
+    /* Seen as idle. */
+    return BOOL_TO_TRISTATE(activity == ACTIVITY_IDLE);
+  default:
+    /* Handled below. */
+    break;
+  }
+
+  return BOOL_TO_TRISTATE(punit->activity == activity);
+}
+
+/**********************************************************************//**
   Is center of given city in tile. If city is NULL, any city will do.
 **************************************************************************/
 static bool is_city_in_tile(const struct tile *ptile,
@@ -2607,96 +2665,138 @@ static enum fc_tristate is_citytile_in_range(const struct tile *target_tile,
                                              enum req_range range,
                                              enum citytile_type citytile)
 {
-  if (target_tile) {
-    if (citytile == CITYT_CENTER) {
-      switch (range) {
-      case REQ_RANGE_LOCAL:
-        return BOOL_TO_TRISTATE(is_city_in_tile(target_tile, target_city));
-      case REQ_RANGE_CADJACENT:
-        if (is_city_in_tile(target_tile, target_city)) {
-          return TRI_YES;
-        }
-        cardinal_adjc_iterate(&(wld.map), target_tile, adjc_tile) {
-          if (is_city_in_tile(adjc_tile, target_city)) {
-            return TRI_YES;
-          }
-        } cardinal_adjc_iterate_end;
-
-        return TRI_NO;
-      case REQ_RANGE_ADJACENT:
-        if (is_city_in_tile(target_tile, target_city)) {
-          return TRI_YES;
-        }
-        adjc_iterate(&(wld.map), target_tile, adjc_tile) {
-          if (is_city_in_tile(adjc_tile, target_city)) {
-            return TRI_YES;
-          }
-        } adjc_iterate_end;
-
-        return TRI_NO;
-      case REQ_RANGE_CITY:
-      case REQ_RANGE_TRADEROUTE:
-      case REQ_RANGE_CONTINENT:
-      case REQ_RANGE_PLAYER:
-      case REQ_RANGE_TEAM:
-      case REQ_RANGE_ALLIANCE:
-      case REQ_RANGE_WORLD:
-      case REQ_RANGE_COUNT:
-	break;
-      }
-
-      fc_assert_msg(FALSE, "Invalid range %d for citytile.", range);
-
-      return TRI_MAYBE;
-    } else if (citytile == CITYT_CLAIMED) {
-      switch (range) {
-      case REQ_RANGE_LOCAL:
-        return BOOL_TO_TRISTATE(target_tile->owner != NULL);
-      case REQ_RANGE_CADJACENT:
-        if (target_tile->owner != NULL) {
-          return TRI_YES;
-        }
-        cardinal_adjc_iterate(&(wld.map), target_tile, adjc_tile) {
-          if (adjc_tile->owner != NULL) {
-            return TRI_YES;
-          }
-        } cardinal_adjc_iterate_end;
-
-        return TRI_NO;
-      case REQ_RANGE_ADJACENT:
-        if (target_tile->owner != NULL) {
-          return TRI_YES;
-        }
-        adjc_iterate(&(wld.map), target_tile, adjc_tile) {
-          if (adjc_tile->owner != NULL) {
-            return TRI_YES;
-          }
-        } adjc_iterate_end;
-
-        return TRI_NO;
-      case REQ_RANGE_CITY:
-      case REQ_RANGE_TRADEROUTE:
-      case REQ_RANGE_CONTINENT:
-      case REQ_RANGE_PLAYER:
-      case REQ_RANGE_TEAM:
-      case REQ_RANGE_ALLIANCE:
-      case REQ_RANGE_WORLD:
-      case REQ_RANGE_COUNT:
-        break;
-      }
-
-      fc_assert_msg(FALSE, "Invalid range %d for citytile.", range);
-
-      return TRI_MAYBE;
-    } else {
-      /* Not implemented */
-      log_error("is_req_active(): citytile %d not supported.",
-		citytile);
-      return TRI_MAYBE;
-    }
-  } else {
+  fc_assert_ret_val(req_range_is_valid(range), TRI_MAYBE);
+  if (target_tile == NULL) {
     return TRI_MAYBE;
   }
+
+  switch (citytile) {
+  case CITYT_CENTER:
+    switch (range) {
+    case REQ_RANGE_LOCAL:
+      return BOOL_TO_TRISTATE(is_city_in_tile(target_tile, target_city));
+    case REQ_RANGE_CADJACENT:
+      if (is_city_in_tile(target_tile, target_city)) {
+        return TRI_YES;
+      }
+      cardinal_adjc_iterate(&(wld.map), target_tile, adjc_tile) {
+        if (is_city_in_tile(adjc_tile, target_city)) {
+          return TRI_YES;
+        }
+      } cardinal_adjc_iterate_end;
+
+      return TRI_NO;
+    case REQ_RANGE_ADJACENT:
+      if (is_city_in_tile(target_tile, target_city)) {
+        return TRI_YES;
+      }
+      adjc_iterate(&(wld.map), target_tile, adjc_tile) {
+        if (is_city_in_tile(adjc_tile, target_city)) {
+          return TRI_YES;
+        }
+      } adjc_iterate_end;
+
+      return TRI_NO;
+    case REQ_RANGE_CITY:
+    case REQ_RANGE_TRADEROUTE:
+    case REQ_RANGE_CONTINENT:
+    case REQ_RANGE_PLAYER:
+    case REQ_RANGE_TEAM:
+    case REQ_RANGE_ALLIANCE:
+    case REQ_RANGE_WORLD:
+    case REQ_RANGE_COUNT:
+      fc_assert_msg(FALSE, "Invalid range %d for citytile.", range);
+      break;
+    }
+
+    return TRI_MAYBE;
+  case CITYT_CLAIMED:
+    switch (range) {
+    case REQ_RANGE_LOCAL:
+      return BOOL_TO_TRISTATE(target_tile->owner != NULL);
+    case REQ_RANGE_CADJACENT:
+      if (target_tile->owner != NULL) {
+        return TRI_YES;
+      }
+      cardinal_adjc_iterate(&(wld.map), target_tile, adjc_tile) {
+        if (adjc_tile->owner != NULL) {
+          return TRI_YES;
+        }
+      } cardinal_adjc_iterate_end;
+
+      return TRI_NO;
+    case REQ_RANGE_ADJACENT:
+      if (target_tile->owner != NULL) {
+        return TRI_YES;
+      }
+      adjc_iterate(&(wld.map), target_tile, adjc_tile) {
+        if (adjc_tile->owner != NULL) {
+          return TRI_YES;
+        }
+      } adjc_iterate_end;
+
+      return TRI_NO;
+    case REQ_RANGE_CITY:
+    case REQ_RANGE_TRADEROUTE:
+    case REQ_RANGE_CONTINENT:
+    case REQ_RANGE_PLAYER:
+    case REQ_RANGE_TEAM:
+    case REQ_RANGE_ALLIANCE:
+    case REQ_RANGE_WORLD:
+    case REQ_RANGE_COUNT:
+      fc_assert_msg(FALSE, "Invalid range %d for citytile.", range);
+      break;
+    }
+
+    return TRI_MAYBE;
+  case CITYT_EXTRAS_OWNED:
+    switch (range) {
+    case REQ_RANGE_LOCAL:
+      return BOOL_TO_TRISTATE(target_tile->extras_owner != NULL);
+    case REQ_RANGE_CADJACENT:
+      if (target_tile->extras_owner != NULL) {
+        return TRI_YES;
+      }
+      cardinal_adjc_iterate(&(wld.map), target_tile, adjc_tile) {
+        if (adjc_tile->extras_owner != NULL) {
+          return TRI_YES;
+        }
+      } cardinal_adjc_iterate_end;
+
+      return TRI_NO;
+    case REQ_RANGE_ADJACENT:
+      if (target_tile->extras_owner != NULL) {
+        return TRI_YES;
+      }
+      adjc_iterate(&(wld.map), target_tile, adjc_tile) {
+        if (adjc_tile->extras_owner != NULL) {
+          return TRI_YES;
+        }
+      } adjc_iterate_end;
+
+      return TRI_NO;
+    case REQ_RANGE_CITY:
+    case REQ_RANGE_TRADEROUTE:
+    case REQ_RANGE_CONTINENT:
+    case REQ_RANGE_PLAYER:
+    case REQ_RANGE_TEAM:
+    case REQ_RANGE_ALLIANCE:
+    case REQ_RANGE_WORLD:
+    case REQ_RANGE_COUNT:
+      fc_assert_msg(FALSE, "Invalid range %d for citytile.", range);
+      break;
+    }
+
+    return TRI_MAYBE;
+  case CITYT_LAST:
+    /* Handled below */
+    break;
+  }
+
+  /* Not implemented */
+  log_error("is_req_active(): citytile %d not supported.",
+            citytile);
+  return TRI_MAYBE;
 }
 
 /**********************************************************************//**
@@ -2945,11 +3045,8 @@ bool is_req_active(const struct player *target_player,
     }
     break;
   case VUT_ACTIVITY:
-    if (target_unit == NULL) {
-      eval = TRI_MAYBE;
-    } else {
-      eval = BOOL_TO_TRISTATE(target_unit->activity == req->source.value.activity);
-    }
+    eval = unit_activity_in_range(target_unit,
+                                  req->range, req->source.value.activity);
     break;
   case VUT_MINMOVES:
     if (target_unit == NULL) {
@@ -4052,6 +4149,9 @@ const char *universal_name_translation(const struct universal *psource,
       break;
     case CITYT_CLAIMED:
       fc_strlcat(buf, _("Tile claimed"), bufsz);
+      break;
+    case CITYT_EXTRAS_OWNED:
+      fc_strlcat(buf, _("Extras owned"), bufsz);
       break;
     case CITYT_LAST:
       fc_assert(psource->value.citytile != CITYT_LAST);

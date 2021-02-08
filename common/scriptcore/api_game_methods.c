@@ -74,7 +74,7 @@ int api_methods_game_year_fragment(lua_State *L)
 }
 
 /*************************************************************************//**
-  Return the current year fragment.
+  Return textual representation of the current calendar time.
 *****************************************************************************/
 const char *api_methods_game_year_text(lua_State *L)
 {
@@ -730,6 +730,22 @@ const char *api_methods_action_name_translation(lua_State *L, Action *pact)
   return action_id_name_translation(pact->id);
 }
 
+/**********************************************************************//**
+  Return target kind for Action
+**************************************************************************/
+const char *api_methods_action_target_kind(lua_State *L, Action *pact)
+{
+  struct action *paction;
+
+  LUASCRIPT_CHECK_STATE(L, NULL);
+  LUASCRIPT_CHECK_SELF(L, pact, NULL);
+
+  paction = action_by_number(pact->id);
+  fc_assert_ret_val(paction, "error: no action");
+
+  return action_target_kind_name(action_get_target_kind(paction));
+}
+
 /*************************************************************************//**
   Return the native x coordinate of the tile.
 *****************************************************************************/
@@ -875,6 +891,42 @@ bool api_methods_tile_has_road(lua_State *L, Tile *ptile, const char *name)
 
     return (NULL != pextra && is_extra_caused_by(pextra, EC_ROAD)
             && tile_has_extra(ptile, pextra));
+  }
+}
+
+/**********************************************************************//**
+  Return the extra owner for the specified extra on ptile or NULL if the
+  extra isn't there.
+  If no name is specified the owner of the first owned extra at the tile
+  is returned.
+**************************************************************************/
+Player *api_methods_tile_extra_owner(lua_State *L,
+                                     Tile *ptile, const char *extra_name)
+{
+  LUASCRIPT_CHECK_STATE(L, NULL);
+  LUASCRIPT_CHECK_SELF(L, ptile, NULL);
+
+  if (extra_name) {
+    struct extra_type *pextra;
+
+    pextra = extra_type_by_rule_name(extra_name);
+    LUASCRIPT_CHECK_ARG(L, pextra != NULL, 3, "unknown extra type", NULL);
+
+    if (tile_has_extra(ptile, pextra)) {
+      /* All extras have the same owner. */
+      return extra_owner(ptile);
+    } else {
+      /* The extra isn't there. */
+      return NULL;
+    }
+  } else {
+    extra_type_iterate(pextra) {
+      if (tile_has_extra(ptile, pextra)) {
+        /* All extras have the same owner. */
+        return extra_owner(ptile);
+      }
+    } extra_type_iterate_end;
+    return NULL;
   }
 }
 

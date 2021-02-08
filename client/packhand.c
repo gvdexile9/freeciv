@@ -4753,7 +4753,6 @@ static action_id auto_attack_act(const struct act_prob *act_probs)
       switch ((enum gen_action)act) {
       case ACTION_DISBAND_UNIT:
       case ACTION_FORTIFY:
-      case ACTION_SENTRY:
       case ACTION_CONVERT:
       case ACTION_TRANSPORT_ALIGHT:
       case ACTION_TRANSPORT_BOARD:
@@ -4780,6 +4779,7 @@ static action_id auto_attack_act(const struct act_prob *act_probs)
       case ACTION_CONQUER_CITY:
       case ACTION_CONQUER_CITY2:
       case ACTION_STRIKE_PRODUCTION:
+      case ACTION_CONQUER_EXTRAS:
         /* An attack. */
         if (attack_action == ACTION_NONE) {
           /* No previous attack action found. */
@@ -4915,6 +4915,7 @@ void handle_unit_actions(const struct packet_unit_actions *packet)
       switch (action_id_get_target_kind(auto_action)) {
       case ATK_TILE:
       case ATK_UNITS:
+      case ATK_EXTRAS:
         request_do_action(auto_action,
                           packet->actor_unit_id, packet->target_tile_id,
                           0, "");

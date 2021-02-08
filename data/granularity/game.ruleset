@@ -11,8 +11,8 @@
 
 [datafile]
 description="Granularity game rules for Freeciv"
-options="+Freeciv-ruleset-Devel-2017.Jan.02"
-format_version=20
+options="+Freeciv-ruleset-Devel-2021.Feb.06"
+format_version=30
 
 ; This section contains meta information for freeciv-ruledit to recreate the ruleset
 ; file in a form wanted. These have no in-game effect whatsoever
@@ -244,25 +244,8 @@ if_attacker =
     }
 
 [actions]
-; If force_trade_route is set to TRUE it is illegal for an actor unit to
-; enter the marketplace of a city if it can establish a trade route to it
-; in stead.
-force_trade_route = FALSE
-
-; If force_capture_units is set to TRUE it is illegal for an actor unit to
-; bombard, explode nuclear or perform a regular attack against a tile if
-; it can capture units on it in stead.
-force_capture_units = FALSE
-
-; If force_bombard is set to TRUE it is illegal for an actor unit to
-; explode nuclear or perform a regular attack against a tile if it can
-; bombard it in stead.
-force_bombard = FALSE
-
-; If force_explode_nuclear is set to TRUE it is illegal for an actor unit
-; to perform a regular attack against a tile if it can do explode nuclear
-; in stead.
-force_explode_nuclear = FALSE
+; Forbid regular unit move if one of the actions below is legal.
+move_is_blocked_by = "Transport Disembark", "Transport Disembark 2"
 
 ; If poison_empties_food_stock is set to TRUE a successful "Poison City"
 ; or "Poison City Escape" will empty the food stock.
@@ -325,9 +308,6 @@ nuke_units_max_range = 1
 ; /* TRANS: _Build City (100% chance of success). */
 ui_name_found_city = _("%sBuild City%s")
 
-; /* TRANS: _Sentry (100% chance of success). */
-ui_name_sentry = _("%sSentry%s")
-
 ; /* <-- avoid gettext warnings
 ;
 ; Action enablers:
@@ -382,6 +362,9 @@ ui_name_transport_embark = _("%sEmbark%s")
 
 ; "Transport Disembark 2" is "Transport Disembark" but from a non native
 ; tile.
+; The version from the non native tile and the native tile version won't
+; appear in the same action selection dialog given their opposite
+; requirements. Avoid double entries in the auto help by silencing it.
 quiet_actions = "Transport Disembark 2"
 
 [actionenabler_found_city]
@@ -485,9 +468,6 @@ actor_reqs    =
     { "type",          "name",         "range", "present"
       "UnitFlag",      "Settlers",     "Local", TRUE
     }
-
-[actionenabler_sentry]
-action        = "Sentry Unit"
 
 [borders]
 ; Base border radius from city.

@@ -268,11 +268,8 @@ static bool is_req_knowable(const struct player *pow_player,
       return TRUE;
     }
 
-    if (req->source.value.activity != ACTIVITY_EXPLORE
-        && (req->source.value.activity != ACTIVITY_GOTO)) {
-      /* Sent in package_short_unit() */
-      return can_player_see_unit(pow_player, target_unit);
-    }
+    /* Sent in package_short_unit() */
+    return can_player_see_unit(pow_player, target_unit);
   }
 
   if (req->source.kind == VUT_DIPLREL) {
@@ -363,7 +360,7 @@ static bool is_req_knowable(const struct player *pow_player,
         return TRUE;
       }
 
-      /* The player knows its city even if he can't see it */
+      /* The player knows his city even if he can't see it */
       pcity = tile_city(target_tile);
       return pcity && city_owner(pcity) == pow_player;
     case REQ_RANGE_CADJACENT:
@@ -372,7 +369,7 @@ static bool is_req_knowable(const struct player *pow_player,
         return TRUE;
       }
 
-      /* The player knows its city even if he can't see it */
+      /* The player knows his city even if he can't see it */
       cardinal_adjc_iterate(&(wld.map), target_tile, ptile) {
         pcity = tile_city(ptile);
         if (pcity && city_owner(pcity) == pow_player) {
@@ -388,7 +385,7 @@ static bool is_req_knowable(const struct player *pow_player,
         return TRUE;
       }
 
-      /* The player knows its city even if he can't see it */
+      /* The player knows his city even if he can't see it */
       adjc_iterate(&(wld.map), target_tile, ptile) {
         pcity = tile_city(ptile);
         if (pcity && city_owner(pcity) == pow_player) {

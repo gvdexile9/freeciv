@@ -797,8 +797,6 @@ static char activity2char(enum unit_activity activity)
     return 'w';
   case ACTIVITY_POLLUTION:
     return 'p';
-  case ACTIVITY_OLD_ROAD:
-    return 'r';
   case ACTIVITY_MINE:
     return 'm';
   case ACTIVITY_PLANT:
@@ -809,12 +807,8 @@ static char activity2char(enum unit_activity activity)
     return 'I';
   case ACTIVITY_FORTIFIED:
     return 'f';
-  case ACTIVITY_FORTRESS:
-    return 't';
   case ACTIVITY_SENTRY:
     return 's';
-  case ACTIVITY_OLD_RAILROAD:
-    return 'l';
   case ACTIVITY_PILLAGE:
     return 'e';
   case ACTIVITY_GOTO:
@@ -823,8 +817,6 @@ static char activity2char(enum unit_activity activity)
     return 'x';
   case ACTIVITY_TRANSFORM:
     return 'o';
-  case ACTIVITY_AIRBASE:
-    return 'a';
   case ACTIVITY_FORTIFYING:
     return 'y';
   case ACTIVITY_FALLOUT:
@@ -835,6 +827,10 @@ static char activity2char(enum unit_activity activity)
     return 'R';
   case ACTIVITY_CONVERT:
     return 'c';
+  case ACTIVITY_OLD_ROAD:
+  case ACTIVITY_FORTRESS:
+  case ACTIVITY_OLD_RAILROAD:
+  case ACTIVITY_AIRBASE:
   case ACTIVITY_UNKNOWN:
   case ACTIVITY_PATROL_UNUSED:
     return '?';
@@ -5614,13 +5610,6 @@ static void sg_load_player_units(struct loaddata *loading,
 
     unit_list_append(plr->units, punit);
     unit_list_prepend(unit_tile(punit)->units, punit);
-
-    /* Claim ownership of fortress? */
-    if ((extra_owner(ptile) == NULL
-         || pplayers_at_war(extra_owner(ptile), plr))
-        && tile_has_claimable_base(ptile, unit_type_get(punit))) {
-      tile_claim_bases(ptile, plr);
-    }
   }
 }
 
@@ -5700,17 +5689,6 @@ static bool sg_load_player_unit(struct loaddata *loading,
   punit->server.birth_turn
     = secfile_lookup_int_default(loading->file, game.info.turn,
                                  "%s.born", unitstr);
-
-  if (activity == ACTIVITY_PATROL_UNUSED) {
-    /* Previously ACTIVITY_PATROL and ACTIVITY_GOTO were used for
-     * client-side goto. Now client-side goto is handled by setting
-     * a special flag, and units with orders generally have ACTIVITY_IDLE.
-     * Old orders are lost. Old client-side goto units will still have
-     * ACTIVITY_GOTO and will goto the correct position via server goto.
-     * Old client-side patrol units lose their patrol routes and are put
-     * into idle mode. */
-    activity = ACTIVITY_IDLE;
-  }
 
   extra_id = secfile_lookup_int_default(loading->file, -2,
                                         "%s.activity_tgt", unitstr);
